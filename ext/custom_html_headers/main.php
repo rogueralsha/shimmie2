@@ -5,7 +5,7 @@ class CustomHtmlHeaders extends Extension
     # Adds setup block for custom <head> content
     public function onSetupBuilding(SetupBuildingEvent $event)
     {
-        $sb = new SetupBlock("Custom HTML Headers");
+        $sb = $event->panel->create_new_block("Custom HTML Headers");
 
         // custom headers
         $sb->add_longtext_option(
@@ -19,8 +19,6 @@ class CustomHtmlHeaders extends Extension
             "as prefix" => "prefix",
             "as suffix" => "suffix"
         ], "<br>Add website name in title");
-
-        $event->panel->add_block($sb);
     }
 
     public function onInitExt(InitExtEvent $event)
@@ -55,7 +53,7 @@ class CustomHtmlHeaders extends Extension
         $sitename_in_title = $config->get_string("sitename_in_title");
 
         // sitename is already in title (can occur on index & other pages)
-        if (strstr($page->title, $site_title)) {
+        if (str_contains($page->title, $site_title)) {
             return;
         }
 

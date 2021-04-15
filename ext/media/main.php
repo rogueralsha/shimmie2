@@ -15,7 +15,7 @@ class MediaException extends SCoreException
 class Media extends Extension
 {
     /** @var MediaTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     private const LOSSLESS_FORMATS = [
         MimeType::WEBP_LOSSLESS,
@@ -79,7 +79,7 @@ class Media extends Extension
 
     public function onSetupBuilding(SetupBuildingEvent $event)
     {
-        $sb = new SetupBlock("Media Engines");
+        $sb = $event->panel->create_new_block("Media Engines");
 
 //        if (self::imagick_available()) {
 //            try {
@@ -101,8 +101,6 @@ class Media extends Extension
 
         $sb->add_shorthand_int_option(MediaConfig::MEM_LIMIT, "Mem limit", true);
         $sb->end_table();
-
-        $event->panel->add_block($sb);
     }
 
     public function onImageAdminBlockBuilding(ImageAdminBlockBuildingEvent $event)
@@ -230,14 +228,10 @@ class Media extends Extension
 //        }
     }
 
-
     const CONTENT_SEARCH_TERM_REGEX = "/^content[=|:]((video)|(audio)|(image)|(unknown))$/i";
-
 
     public function onSearchTermParse(SearchTermParseEvent $event)
     {
-        global $database;
-
         if (is_null($event->term)) {
             return;
         }
@@ -248,7 +242,7 @@ class Media extends Extension
             if ($field==="unknown") {
                 $event->add_querylet(new Querylet("video IS NULL OR audio IS NULL OR image IS NULL"));
             } else {
-                $event->add_querylet(new Querylet($database->scoreql_to_sql("$field = SCORE_BOOL_Y")));
+                $event->add_querylet(new Querylet("$field = :true", ["true"=>true]));
             }
         }
     }
@@ -323,10 +317,11 @@ class Media extends Extension
         global $config;
 
         $ffmpeg = $config->get_string(MediaConfig::FFMPEG_PATH);
-        if ($ffmpeg == null || $ffmpeg == "") {
-            throw new MediaException("ffmpeg command configured");
+        if (empty($ffmpeg)) {
+            throw new MediaException("ffmpeg command not configured");
         }
 
+        $ok = false;
         $inname = warehouse_path(Image::IMAGE_DIR, $hash);
         $tmpname = tempnam(sys_get_temp_dir(), "shimmie_ffmpeg_thumb");
         try {
@@ -334,18 +329,6 @@ class Media extends Extension
 
             $orig_size = self::video_size($inname);
             $scaled_size = get_thumbnail_size($orig_size[0], $orig_size[1], true);
-
-            $codec = "mjpeg";
-            $quality = $config->get_int(ImageConfig::THUMB_QUALITY);
-            if ($config->get_string(ImageConfig::THUMB_MIME) == MimeType::WEBP) {
-                $codec = "libwebp";
-            } else {
-                // mjpeg quality ranges from 2-31, with 2 being the best quality.
-                $quality = floor(31 - (31 * ($quality / 100)));
-                if ($quality < 2) {
-                    $quality = 2;
-                }
-            }
 
             $args = [
                 escapeshellarg($ffmpeg),
@@ -363,18 +346,15 @@ class Media extends Extension
 
             if ((int)$ret === (int)0) {
                 log_debug('media', "Generating thumbnail with command `$cmd`, returns $ret");
-
                 create_scaled_image($tmpname, $outname, $scaled_size, MimeType::PNG);
-
-
-                return true;
+                $ok = true;
             } else {
                 log_error('media', "Generating thumbnail with command `$cmd`, returns $ret");
-                return false;
             }
         } finally {
             @unlink($tmpname);
         }
+        return $ok;
     }
 
 
@@ -526,7 +506,7 @@ class Media extends Extension
 //        }
 //    }
 
-    public static function is_lossless(string $filename, string $mime)
+    public static function is_lossless(string $filename, string $mime): bool
     {
         if (in_array($mime, self::LOSSLESS_FORMATS)) {
             return true;
@@ -534,7 +514,6 @@ class Media extends Extension
         switch ($mime) {
             case MimeType::WEBP:
                 return MimeType::is_lossless_webp($filename);
-                break;
         }
         return false;
     }
@@ -918,9 +897,7 @@ class Media extends Extension
         }
 
         if ($this->get_version(MediaConfig::VERSION) < 2) {
-            $database->execute($database->scoreql_to_sql(
-                "ALTER TABLE images ADD COLUMN image SCORE_BOOL NULL"
-            ));
+            $database->execute("ALTER TABLE images ADD COLUMN image BOOLEAN NULL");
 
             switch ($database->get_driver_name()) {
                 case DatabaseDriver::PGSQL:
@@ -932,25 +909,23 @@ class Media extends Extension
                     break;
             }
 
-            $database->set_timeout(300000); // These updates can take a little bit
-
-            if ($database->transaction === true) {
-                $database->commit(); // Each of these commands could hit a lot of data, combining them into one big transaction would not be a good idea.
-            }
-            log_info("upgrade", "Setting predictable media values for known file types");
-            $database->execute($database->scoreql_to_sql("UPDATE images SET image = SCORE_BOOL_N WHERE ext IN ('swf','mp3','ani','flv','mp4','m4v','ogv','webm')"));
-            $database->execute($database->scoreql_to_sql("UPDATE images SET image = SCORE_BOOL_Y WHERE ext IN ('jpg','jpeg','ico','cur','png')"));
-
             $this->set_version(MediaConfig::VERSION, 2);
-
-            $database->begin_transaction();
         }
 
         if ($this->get_version(MediaConfig::VERSION) < 3) {
-            $database->execute($database->scoreql_to_sql(
-                "ALTER TABLE images ADD COLUMN video_codec varchar(512) NULL"
-            ));
+            $database->execute("ALTER TABLE images ADD COLUMN video_codec varchar(512) NULL");
             $this->set_version(MediaConfig::VERSION, 3);
+        }
+
+        if ($this->get_version(MediaConfig::VERSION) < 4) {
+            $database->standardise_boolean("images", "image");
+            $this->set_version(MediaConfig::VERSION, 4);
+        }
+
+        if ($this->get_version(MediaConfig::VERSION) < 5) {
+            $database->execute("UPDATE images SET image = :f WHERE ext IN ('swf','mp3','ani','flv','mp4','m4v','ogv','webm')", ["f"=>false]);
+            $database->execute("UPDATE images SET image = :t WHERE ext IN ('jpg','jpeg','ico','cur','png')", ["t"=>true]);
+            $this->set_version(MediaConfig::VERSION, 5);
         }
     }
 

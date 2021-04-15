@@ -2,9 +2,9 @@
 
 class NumericScoreSetEvent extends Event
 {
-    public $image_id;
-    public $user;
-    public $score;
+    public int $image_id;
+    public User $user;
+    public int $score;
 
     public function __construct(int $image_id, User $user, int $score)
     {
@@ -18,7 +18,7 @@ class NumericScoreSetEvent extends Event
 class NumericScore extends Extension
 {
     /** @var NumericScoreTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     public function onDisplayingImage(DisplayingImageEvent $event)
     {
@@ -162,7 +162,7 @@ class NumericScore extends Extension
     public function onNumericScoreSet(NumericScoreSetEvent $event)
     {
         global $user;
-        log_debug("numeric_score", "Rated Image #{$event->image_id} as {$event->score}", "Rated Image");
+        log_debug("numeric_score", "Rated >>{$event->image_id} as {$event->score}", "Rated Post");
         $this->add_vote($event->image_id, $user->id, $event->score);
     }
 
@@ -272,8 +272,7 @@ class NumericScore extends Extension
         } elseif (preg_match("/^order[=|:](?:numeric_)?(score)(?:_(desc|asc))?$/i", $event->term, $matches)) {
             $default_order_for_column = "DESC";
             $sort = isset($matches[2]) ? strtoupper($matches[2]) : $default_order_for_column;
-            Image::$order_sql = "images.numeric_score $sort";
-            $event->add_querylet(new Querylet("1=1")); //small hack to avoid metatag being treated as normal tag
+            $event->order = "images.numeric_score $sort";
         }
     }
 
@@ -343,7 +342,7 @@ class NumericScore extends Extension
                 ["imageid" => $image_id, "userid" => $user_id, "score" => $score]
             );
         }
-        $database->Execute(
+        $database->execute(
             "UPDATE images SET numeric_score=(
 				COALESCE(
 					(SELECT SUM(score) FROM numeric_score_votes WHERE image_id=:imageid),

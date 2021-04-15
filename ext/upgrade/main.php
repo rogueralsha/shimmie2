@@ -24,7 +24,7 @@ class Upgrade extends Extension
             file_put_contents("data/index.php", "<?php\n// Silence is golden...\n");
         }
 
-        if ($config->get_int("db_version") < 1) {
+        if ($this->get_version("db_version") < 1) {
             $this->set_version("db_version", 2);
         }
 
@@ -32,9 +32,9 @@ class Upgrade extends Extension
         // now done again as v9 with PDO
 
         if ($this->get_version("db_version") < 8) {
-            $database->execute($database->scoreql_to_sql(
-                "ALTER TABLE images ADD COLUMN locked SCORE_BOOL NOT NULL DEFAULT SCORE_BOOL_N"
-            ));
+            $database->execute(
+                "ALTER TABLE images ADD COLUMN locked BOOLEAN NOT NULL DEFAULT FALSE"
+            );
 
             $this->set_version("db_version", 8);
         }
@@ -53,7 +53,7 @@ class Upgrade extends Extension
 
         if ($this->get_version("db_version") < 10) {
             log_info("upgrade", "Adding foreign keys to images");
-            $database->Execute("ALTER TABLE images ADD FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT");
+            $database->execute("ALTER TABLE images ADD FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT");
 
             $this->set_version("db_version", 10);
         }
@@ -136,15 +136,9 @@ class Upgrade extends Extension
 
         if ($this->get_version("db_version") < 17) {
             log_info("upgrade", "Adding media information columns to images table");
-            $database->execute($database->scoreql_to_sql(
-                "ALTER TABLE images ADD COLUMN lossless SCORE_BOOL NULL"
-            ));
-            $database->execute($database->scoreql_to_sql(
-                "ALTER TABLE images ADD COLUMN video SCORE_BOOL NULL"
-            ));
-            $database->execute($database->scoreql_to_sql(
-                "ALTER TABLE images ADD COLUMN audio SCORE_BOOL NULL"
-            ));
+            $database->execute("ALTER TABLE images ADD COLUMN lossless BOOLEAN NULL");
+            $database->execute("ALTER TABLE images ADD COLUMN video BOOLEAN NULL");
+            $database->execute("ALTER TABLE images ADD COLUMN audio BOOLEAN NULL");
             $database->execute("ALTER TABLE images ADD COLUMN length INTEGER NULL ");
 
             log_info("upgrade", "Setting indexes for media columns");
@@ -170,34 +164,41 @@ class Upgrade extends Extension
             $this->set_version("db_version", 17);
         }
 
-        if ($this->get_version("db_version") < 18) {
-            log_info("upgrade", "Setting predictable media values for known file types");
-            if ($database->transaction) {
-                // Each of these commands could hit a lot of data, combining
-                // them into one big transaction would not be a good idea.
-                $database->commit();
-            }
-            $database->execute($database->scoreql_to_sql("UPDATE images SET lossless = SCORE_BOOL_Y, video = SCORE_BOOL_Y WHERE ext IN ('swf')"));
-            $database->execute($database->scoreql_to_sql("UPDATE images SET lossless = SCORE_BOOL_N, video = SCORE_BOOL_N, audio = SCORE_BOOL_Y WHERE ext IN ('mp3')"));
-            $database->execute($database->scoreql_to_sql("UPDATE images SET lossless = SCORE_BOOL_N, video = SCORE_BOOL_N, audio = SCORE_BOOL_N WHERE ext IN ('jpg','jpeg')"));
-            $database->execute($database->scoreql_to_sql("UPDATE images SET lossless = SCORE_BOOL_Y, video = SCORE_BOOL_N, audio = SCORE_BOOL_N WHERE ext IN ('ico','ani','cur','png','svg')"));
-            $database->execute($database->scoreql_to_sql("UPDATE images SET lossless = SCORE_BOOL_Y, audio = SCORE_BOOL_N WHERE ext IN ('gif')"));
-            $database->execute($database->scoreql_to_sql("UPDATE images SET audio = SCORE_BOOL_N WHERE ext IN ('webp')"));
-            $database->execute($database->scoreql_to_sql("UPDATE images SET lossless = SCORE_BOOL_N, video = SCORE_BOOL_Y WHERE ext IN ('flv','mp4','m4v','ogv','webm')"));
-            $this->set_version("db_version", 18);
-        }
+        // 18 was populating data using an out of date format
 
         if ($this->get_version("db_version") < 19) {
             log_info("upgrade", "Adding MIME type column");
 
-            $database->execute($database->scoreql_to_sql(
-                "ALTER TABLE images ADD COLUMN mime varchar(512) NULL"
-            ));
+            $database->execute("ALTER TABLE images ADD COLUMN mime varchar(512) NULL");
             // Column is primed in mime extension
             log_info("upgrade", "Setting index for mime column");
             $database->execute('CREATE INDEX images_mime_idx ON images(mime)');
 
             $this->set_version("db_version", 19);
+        }
+
+        if ($this->get_version("db_version") < 20) {
+            $database->standardise_boolean("images", "lossless");
+            $database->standardise_boolean("images", "video");
+            $database->standardise_boolean("images", "audio");
+            $this->set_version("db_version", 20);
+        }
+
+        if ($this->get_version("db_version") < 21) {
+            log_info("upgrade", "Setting predictable media values for known file types");
+            if ($database->is_transaction_open()) {
+                // Each of these commands could hit a lot of data, combining
+                // them into one big transaction would not be a good idea.
+                $database->commit();
+            }
+            $database->execute("UPDATE images SET lossless = :t, video = :t WHERE ext IN ('swf')", ["t"=>true]);
+            $database->execute("UPDATE images SET lossless = :f, video = :f, audio = :t WHERE ext IN ('mp3')", ["t"=>true, "f"=>false]);
+            $database->execute("UPDATE images SET lossless = :f, video = :f, audio = :f WHERE ext IN ('jpg','jpeg')", ["f"=>false]);
+            $database->execute("UPDATE images SET lossless = :t, video = :f, audio = :f WHERE ext IN ('ico','ani','cur','png','svg')", ["t"=>true, "f"=>false]);
+            $database->execute("UPDATE images SET lossless = :t, audio = :f WHERE ext IN ('gif')", ["t"=>true, "f"=>false]);
+            $database->execute("UPDATE images SET audio = :f WHERE ext IN ('webp')", ["f"=>false]);
+            $database->execute("UPDATE images SET lossless = :f, video = :t WHERE ext IN ('flv','mp4','m4v','ogv','webm')", ["t"=>true, "f"=>false]);
+            $this->set_version("db_version", 21);
         }
     }
 

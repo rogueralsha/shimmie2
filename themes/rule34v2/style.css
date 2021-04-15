@@ -78,6 +78,11 @@ UL {
 	text-align: left;
 }
 
+.ad1{
+	display:flex;
+	justify-content:center;
+}
+
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 *             the navigation bar, and all its blocks             *
 * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
@@ -107,6 +112,10 @@ NAV SELECT {
 	padding: 0;
 }
 
+#Friends_of_Pahealleft {
+	z-index: 0;
+	position: relative;
+}
 
 .comment .info {
 	background: #ACE4A3;

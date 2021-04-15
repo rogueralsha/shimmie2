@@ -5,10 +5,9 @@ class GoogleAnalytics extends Extension
     # Add analytics to config
     public function onSetupBuilding(SetupBuildingEvent $event)
     {
-        $sb = new SetupBlock("Google Analytics");
+        $sb = $event->panel->create_new_block("Google Analytics");
         $sb->add_text_option("google_analytics_id", "Analytics ID: ");
         $sb->add_label("<br>(eg. UA-xxxxxxxx-x)");
-        $event->panel->add_block($sb);
     }
 
     # Load Analytics tracking code on page request
@@ -24,7 +23,7 @@ class GoogleAnalytics extends Extension
                     _gaq.push(['_trackPageview']);
                     (function() {
                       var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
-                      ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+                      ga.src = ('https:' === document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
                       var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
                     })();</script>");
         }

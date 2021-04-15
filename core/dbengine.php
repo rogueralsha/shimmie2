@@ -3,26 +3,19 @@ abstract class SCORE
 {
     const AIPK      = "SCORE_AIPK";
     const INET      = "SCORE_INET";
-    const BOOL_Y    = "SCORE_BOOL_Y";
-    const BOOL_N    = "SCORE_BOOL_N";
-    const BOOL      = "SCORE_BOOL";
 }
 
 abstract class DBEngine
 {
-    /** @var null|string */
-    public $name = null;
-
-    public $BOOL_Y = null;
-    public $BOOL_N = null;
+    public ?string $name = null;
 
     public function init(PDO $db)
     {
     }
 
-    public function scoreql_to_sql(string $scoreql): string
+    public function scoreql_to_sql(string $data): string
     {
-        return $scoreql;
+        return $data;
     }
 
     public function create_table_sql(string $name, string $data): string
@@ -39,11 +32,7 @@ abstract class DBEngine
 
 class MySQL extends DBEngine
 {
-    /** @var string */
-    public $name = DatabaseDriver::MYSQL;
-
-    public $BOOL_Y = 'Y';
-    public $BOOL_N = 'N';
+    public ?string $name = DatabaseDriver::MYSQL;
 
     public function init(PDO $db)
     {
@@ -54,9 +43,6 @@ class MySQL extends DBEngine
     {
         $data = str_replace(SCORE::AIPK, "INTEGER PRIMARY KEY auto_increment", $data);
         $data = str_replace(SCORE::INET, "VARCHAR(45)", $data);
-        $data = str_replace(SCORE::BOOL_Y, "'$this->BOOL_Y'", $data);
-        $data = str_replace(SCORE::BOOL_N, "'$this->BOOL_N'", $data);
-        $data = str_replace(SCORE::BOOL, "ENUM('Y', 'N')", $data);
         return $data;
     }
 
@@ -85,11 +71,7 @@ class MySQL extends DBEngine
 
 class PostgreSQL extends DBEngine
 {
-    /** @var string */
-    public $name = DatabaseDriver::PGSQL;
-
-    public $BOOL_Y = "true";
-    public $BOOL_N = "false";
+    public ?string $name = DatabaseDriver::PGSQL;
 
     public function init(PDO $db)
     {
@@ -107,9 +89,6 @@ class PostgreSQL extends DBEngine
     {
         $data = str_replace(SCORE::AIPK, "INTEGER NOT NULL PRIMARY KEY GENERATED ALWAYS AS IDENTITY", $data);
         $data = str_replace(SCORE::INET, "INET", $data);
-        $data = str_replace(SCORE::BOOL_Y, "true", $data);
-        $data = str_replace(SCORE::BOOL_N, "false", $data);
-        $data = str_replace(SCORE::BOOL, "BOOL", $data);
         return $data;
     }
 
@@ -140,19 +119,19 @@ class PostgreSQL extends DBEngine
 }
 
 // shimmie functions for export to sqlite
-function _unix_timestamp($date)
+function _unix_timestamp($date): int
 {
     return strtotime($date);
 }
-function _now()
+function _now(): string
 {
     return date("Y-m-d H:i:s");
 }
-function _floor($a)
+function _floor($a): float
 {
     return floor($a);
 }
-function _log($a, $b=null)
+function _log($a, $b=null): float
 {
     if (is_null($b)) {
         return log($a);
@@ -160,39 +139,34 @@ function _log($a, $b=null)
         return log($a, $b);
     }
 }
-function _isnull($a)
+function _isnull($a): bool
 {
     return is_null($a);
 }
-function _md5($a)
+function _md5($a): string
 {
     return md5($a);
 }
-function _concat($a, $b)
+function _concat($a, $b): string
 {
     return $a . $b;
 }
-function _lower($a)
+function _lower($a): string
 {
     return strtolower($a);
 }
-function _rand()
+function _rand(): int
 {
     return rand();
 }
-function _ln($n)
+function _ln($n): float
 {
     return log($n);
 }
 
 class SQLite extends DBEngine
 {
-    /** @var string  */
-    public $name = DatabaseDriver::SQLITE;
-
-    public $BOOL_Y = 'Y';
-    public $BOOL_N = 'N';
-
+    public ?string $name = DatabaseDriver::SQLITE;
 
     public function init(PDO $db)
     {
@@ -214,9 +188,6 @@ class SQLite extends DBEngine
     {
         $data = str_replace(SCORE::AIPK, "INTEGER PRIMARY KEY", $data);
         $data = str_replace(SCORE::INET, "VARCHAR(45)", $data);
-        $data = str_replace(SCORE::BOOL_Y, "'$this->BOOL_Y'", $data);
-        $data = str_replace(SCORE::BOOL_N, "'$this->BOOL_N'", $data);
-        $data = str_replace(SCORE::BOOL, "CHAR(1)", $data);
         return $data;
     }
 

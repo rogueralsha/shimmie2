@@ -4,12 +4,9 @@ require_once "vendor/ifixit/php-akismet/akismet.class.php";
 
 class CommentPostingEvent extends Event
 {
-    /** @var  int */
-    public $image_id;
-    /** @var User */
-    public $user;
-    /** @var string  */
-    public $comment;
+    public int $image_id;
+    public User $user;
+    public string $comment;
 
     public function __construct(int $image_id, User $user, string $comment)
     {
@@ -27,8 +24,7 @@ class CommentPostingEvent extends Event
  */
 class CommentDeletionEvent extends Event
 {
-    /** @var  int */
-    public $comment_id;
+    public int $comment_id;
 
     public function __construct(int $comment_id)
     {
@@ -43,46 +39,27 @@ class CommentPostingException extends SCoreException
 
 class Comment
 {
-    /** @var User */
-    public $owner;
-
-    /** @var int */
-    public $owner_id;
-
-    /** @var string */
-    public $owner_name;
-
-    /** @var string */
-    public $owner_email;
-
-    /** @var string */
-    public $owner_class;
-
-    /** @var string */
-    public $comment;
-
-    /** @var int */
-    public $comment_id;
-
-    /** @var int */
-    public $image_id;
-
-    /** @var string */
-    public $poster_ip;
-
-    /** @var string */
-    public $posted;
+    public ?User $owner;
+    public int $owner_id;
+    public string $owner_name;
+    public ?string $owner_email;
+    public string $owner_class;
+    public string $comment;
+    public int $comment_id;
+    public int $image_id;
+    public string $poster_ip;
+    public string $posted;
 
     public function __construct($row)
     {
         $this->owner = null;
-        $this->owner_id = $row['user_id'];
+        $this->owner_id = (int)$row['user_id'];
         $this->owner_name = $row['user_name'];
         $this->owner_email = $row['user_email']; // deprecated
         $this->owner_class = $row['user_class'];
         $this->comment =  $row['comment'];
-        $this->comment_id =  $row['comment_id'];
-        $this->image_id =  $row['image_id'];
+        $this->comment_id =  (int)$row['comment_id'];
+        $this->image_id =  (int)$row['image_id'];
         $this->poster_ip =  $row['poster_ip'];
         $this->posted =  $row['posted'];
     }
@@ -109,7 +86,7 @@ class Comment
 class CommentList extends Extension
 {
     /** @var CommentListTheme $theme */
-    public $theme;
+    public ?Themelet $theme;
 
     public function onInitExt(InitExtEvent $event)
     {
@@ -158,15 +135,15 @@ class CommentList extends Extension
             }
 
             if ($this->get_version("ext_comments_version") == 1) {
-                $database->Execute("CREATE INDEX comments_owner_ip ON comments(owner_ip)");
-                $database->Execute("CREATE INDEX comments_posted ON comments(posted)");
+                $database->execute("CREATE INDEX comments_owner_ip ON comments(owner_ip)");
+                $database->execute("CREATE INDEX comments_posted ON comments(posted)");
                 $this->set_version("ext_comments_version", 2);
             }
 
             if ($this->get_version("ext_comments_version") == 2) {
                 $this->set_version("ext_comments_version", 3);
-                $database->Execute("ALTER TABLE comments ADD FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE");
-                $database->Execute("ALTER TABLE comments ADD FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT");
+                $database->execute("ALTER TABLE comments ADD FOREIGN KEY (image_id) REFERENCES images(id) ON DELETE CASCADE");
+                $database->execute("ALTER TABLE comments ADD FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT");
             }
 
             // FIXME: add foreign keys, bump to v3
@@ -266,7 +243,7 @@ class CommentList extends Extension
 
         $total_pages = $cache->get("comment_pages");
         if (empty($total_pages)) {
-            $total_pages = (int)($database->get_one("
+            $total_pages = (int)ceil($database->get_one("
 				SELECT COUNT(c1)
 				FROM (SELECT COUNT(image_id) AS c1 FROM comments $where GROUP BY image_id) AS s1
 			") / 10);
@@ -278,7 +255,7 @@ class CommentList extends Extension
         $threads_per_page = 10;
         $start = $threads_per_page * $current_page;
 
-        $result = $database->Execute("
+        $result = $database->execute("
 			SELECT image_id,MAX(posted) AS latest
 			FROM comments
 			$where
@@ -370,7 +347,7 @@ class CommentList extends Extension
     public function onCommentDeletion(CommentDeletionEvent $event)
     {
         global $database;
-        $database->Execute("
+        $database->execute("
 			DELETE FROM comments
 			WHERE id=:comment_id
 		", ["comment_id"=>$event->comment_id]);
@@ -379,7 +356,7 @@ class CommentList extends Extension
 
     public function onSetupBuilding(SetupBuildingEvent $event)
     {
-        $sb = new SetupBlock("Comment Options");
+        $sb = $event->panel->create_new_block("Comment Options");
         $sb->add_bool_option("comment_captcha", "Require CAPTCHA for anonymous comments: ");
         $sb->add_label("<br>Limit to ");
         $sb->add_int_option("comment_limit");
@@ -394,7 +371,6 @@ class CommentList extends Extension
         $sb->add_label(" comments per image on the list");
         $sb->add_label("<br>Make samefags public ");
         $sb->add_bool_option("comment_samefags_public");
-        $event->panel->add_block($sb);
     }
 
     public function onSearchTermParse(SearchTermParseEvent $event)
@@ -595,7 +571,7 @@ class CommentList extends Extension
         if ($user->is_anonymous()) {
             $page->add_cookie("nocache", "Anonymous Commenter", time()+60*60*24, "/");
         }
-        $database->Execute(
+        $database->execute(
             "INSERT INTO comments(image_id, owner_id, owner_ip, posted, comment) ".
                 "VALUES(:image_id, :user_id, :remote_addr, now(), :comment)",
             ["image_id"=>$image_id, "user_id"=>$user->id, "remote_addr"=>$_SERVER['REMOTE_ADDR'], "comment"=>$comment]
@@ -604,7 +580,7 @@ class CommentList extends Extension
         $snippet = substr($comment, 0, 100);
         $snippet = str_replace("\n", " ", $snippet);
         $snippet = str_replace("\r", " ", $snippet);
-        log_info("comment", "Comment #$cid added to Image #$image_id: $snippet");
+        log_info("comment", "Comment #$cid added to >>$image_id: $snippet");
     }
 
     private function comment_checks(int $image_id, User $user, string $comment)

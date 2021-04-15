@@ -68,7 +68,7 @@ class TagEditTheme extends Themelet
         $h_owner = html_escape($image->get_owner()->name);
         $h_av = $image->get_owner()->get_avatar_html();
         $h_date = autodate($image->posted);
-        $h_ip = $user->can(Permissions::VIEW_IP) ? " (".show_ip($image->owner_ip, "Image posted {$image->posted}").")" : "";
+        $h_ip = $user->can(Permissions::VIEW_IP) ? " (".show_ip($image->owner_ip, "Post posted {$image->posted}").")" : "";
         return "
 			<tr>
 				<th>Uploader</th>
@@ -109,13 +109,13 @@ class TagEditTheme extends Themelet
     protected function format_source(string $source=null): string
     {
         if (!empty($source)) {
-            if (!startsWith($source, "http://") && !startsWith($source, "https://")) {
+            if (!str_starts_with($source, "http://") && !str_starts_with($source, "https://")) {
                 $source = "http://" . $source;
             }
             $proto_domain = explode("://", $source);
             $h_source = html_escape($proto_domain[1]);
             $u_source = html_escape($source);
-            if (endsWith($h_source, "/")) {
+            if (str_ends_with($h_source, "/")) {
                 $h_source = substr($h_source, 0, -1);
             }
             return "<a href='$u_source'>$h_source</a>";

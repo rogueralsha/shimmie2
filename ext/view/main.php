@@ -12,7 +12,7 @@ use function MicroHTML\TD;
 class ViewImage extends Extension
 {
     /** @var ViewImageTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     public function onPageRequest(PageRequestEvent $event)
     {
@@ -31,7 +31,7 @@ class ViewImage extends Extension
 
             $image = Image::by_id($image_id);
             if (is_null($image)) {
-                $this->theme->display_error(404, "Image not found", "Image $image_id could not be found");
+                $this->theme->display_error(404, "Post not found", "Post $image_id could not be found");
                 return;
             }
 
@@ -42,7 +42,7 @@ class ViewImage extends Extension
             }
 
             if (is_null($image)) {
-                $this->theme->display_error(404, "Image not found", "No more images");
+                $this->theme->display_error(404, "Post not found", "No more posts");
                 return;
             }
 
@@ -54,7 +54,7 @@ class ViewImage extends Extension
                 // who follows up every request to '/post/view/123' with
                 // '/post/view/12300000000000Image 123: tags' which spams the
                 // database log with 'integer out of range'
-                $this->theme->display_error(404, "Image not found", "Invalid image ID");
+                $this->theme->display_error(404, "Post not found", "Invalid post ID");
                 return;
             }
 
@@ -65,7 +65,7 @@ class ViewImage extends Extension
             if (!is_null($image)) {
                 send_event(new DisplayingImageEvent($image));
             } else {
-                $this->theme->display_error(404, "Image not found", "No image in the database has the ID #$image_id");
+                $this->theme->display_error(404, "Post not found", "No post in the database has the ID #$image_id");
             }
         } elseif ($event->page_matches("post/set")) {
             if (!isset($_POST['image_id'])) {
@@ -77,9 +77,15 @@ class ViewImage extends Extension
             if (!$image->is_locked() || $user->can(Permissions::EDIT_IMAGE_LOCK)) {
                 send_event(new ImageInfoSetEvent($image));
                 $page->set_mode(PageMode::REDIRECT);
-                $page->set_redirect(make_link("post/view/$image_id", url_escape(@$_POST['query'])));
+
+                if (isset($_GET['search'])) {
+                    $query = "search=" . url_escape($_GET['search']);
+                } else {
+                    $query = null;
+                }
+                $page->set_redirect(make_link("post/view/$image_id", null, $query));
             } else {
-                $this->theme->display_error(403, "Image Locked", "An admin has locked this image");
+                $this->theme->display_error(403, "Post Locked", "An admin has locked this post");
             }
         }
     }

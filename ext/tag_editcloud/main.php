@@ -34,7 +34,7 @@ class TagEditCloud extends Extension
     {
         $sort_by = ['Alphabetical'=>'a','Popularity'=>'p','Relevance'=>'r','Categories'=>'c'];
 
-        $sb = new SetupBlock("Tag Edit Cloud");
+        $sb = $event->panel->create_new_block("Tag Edit Cloud");
         $sb->add_bool_option("tageditcloud_disable", "Disable Tag Selection Cloud: ");
         $sb->add_choice_option("tageditcloud_sort", $sort_by, "<br>Sort the tags by:");
         $sb->add_bool_option("tageditcloud_usedfirst", "<br>Always show used tags first: ");
@@ -47,8 +47,6 @@ class TagEditCloud extends Extension
         $sb->add_label(" tags.");
         $sb->add_label("<br><b>Relevance sort</b>:<br>Ignore tags (space separated): ");
         $sb->add_text_option("tageditcloud_ignoretags");
-
-        $event->panel->add_block($sb);
     }
 
     private function build_tag_map(Image $image): ?string
@@ -96,6 +94,7 @@ class TagEditCloud extends Extension
                     ["tag_min1" => $tags_min, "tag_min2" => $tags_min, "limit" => $max_count, "relevant_tags"=>$relevant_tags]
                 );
                 break;
+            /** @noinspection PhpMissingBreakStatementInspection */
             case 'c':
                 if (Extension::is_enabled(TagCategoriesInfo::KEY)) {
                     $tag_data = $database->get_all(

@@ -2,10 +2,8 @@
 
 class WikiUpdateEvent extends Event
 {
-    /** @var User  */
-    public $user;
-    /** @var WikiPage  */
-    public $wikipage;
+    public User $user;
+    public WikiPage $wikipage;
 
     public function __construct(User $user, WikiPage $wikipage)
     {
@@ -17,10 +15,10 @@ class WikiUpdateEvent extends Event
 
 class WikiDeleteRevisionEvent extends Event
 {
-    public $title;
-    public $revision;
+    public string $title;
+    public int $revision;
 
-    public function __construct($title, $revision)
+    public function __construct(string $title, int $revision)
     {
         parent::__construct();
         $this->title = $title;
@@ -30,9 +28,9 @@ class WikiDeleteRevisionEvent extends Event
 
 class WikiDeletePageEvent extends Event
 {
-    public $title;
+    public string $title;
 
-    public function __construct($title)
+    public function __construct(string $title)
     {
         parent::__construct();
         $this->title = $title;
@@ -45,29 +43,14 @@ class WikiUpdateException extends SCoreException
 
 class WikiPage
 {
-    /** @var int|string */
-    public $id;
-
-    /** @var int */
-    public $owner_id;
-
-    /** @var string */
-    public $owner_ip;
-
-    /** @var string */
-    public $date;
-
-    /** @var string */
-    public $title;
-
-    /** @var int */
-    public $revision;
-
-    /** @var bool */
-    public $locked;
-
-    /** @var string */
-    public $body;
+    public int $id;
+    public int $owner_id;
+    public string $owner_ip;
+    public string $date;
+    public string $title;
+    public int $revision;
+    public bool $locked;
+    public string $body;
 
     public function __construct(array $row=null)
     {
@@ -80,7 +63,7 @@ class WikiPage
             $this->date = $row['date'];
             $this->title = $row['title'];
             $this->revision = (int)$row['revision'];
-            $this->locked = ($row['locked'] == 'Y');
+            $this->locked = bool_escape($row['locked']);
             $this->body = $row['body'];
         }
     }
@@ -98,27 +81,40 @@ class WikiPage
 
 abstract class WikiConfig
 {
+    const TAG_PAGE_TEMPLATE = "wiki_tag_page_template";
+    const EMPTY_TAGINFO = "wiki_empty_taginfo";
     const TAG_SHORTWIKIS = "shortwikis_on_tags";
+    const ENABLE_REVISIONS = "wiki_revisions";
 }
 
 class Wiki extends Extension
 {
     /** @var WikiTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     public function onInitExt(InitExtEvent $event)
     {
         global $config;
+        $config->set_default_string(
+            WikiConfig::TAG_PAGE_TEMPLATE,
+            "{body}
+
+[b]Aliases: [/b][i]{aliases}[/i]
+[b]Auto tags: [/b][i]{autotags}[/i]"
+        );
+        $config->set_default_string(WikiConfig::EMPTY_TAGINFO, "none");
         $config->set_default_bool(WikiConfig::TAG_SHORTWIKIS, false);
+        $config->set_default_bool(WikiConfig::ENABLE_REVISIONS, true);
     }
 
     // Add a block to the Board Config / Setup
     public function onSetupBuilding(SetupBuildingEvent $event)
     {
-        $sb = new SetupBlock("Wiki");
+        $sb = $event->panel->create_new_block("Wiki");
+        $sb->add_bool_option(WikiConfig::ENABLE_REVISIONS, "Enable wiki revisions: ");
+        $sb->add_longtext_option(WikiConfig::TAG_PAGE_TEMPLATE, "Tag page template: ");
+        $sb->add_text_option(WikiConfig::EMPTY_TAGINFO, "Empty list text: ");
         $sb->add_bool_option(WikiConfig::TAG_SHORTWIKIS, "Show shortwiki entry when searching for a single tag: ");
-
-        $event->panel->add_block($sb);
     }
 
     public function onDatabaseUpgrade(DatabaseUpgradeEvent $event)
@@ -133,17 +129,21 @@ class Wiki extends Extension
 				date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 				title VARCHAR(255) NOT NULL,
 				revision INTEGER NOT NULL DEFAULT 1,
-				locked SCORE_BOOL NOT NULL DEFAULT SCORE_BOOL_N,
+				locked BOOLEAN NOT NULL DEFAULT FALSE,
 				body TEXT NOT NULL,
 				UNIQUE (title, revision),
 				FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT
 			");
-            $this->set_version("ext_wiki_version", 2);
+            $this->set_version("ext_wiki_version", 3);
         }
         if ($this->get_version("ext_wiki_version") < 2) {
-            $database->Execute("ALTER TABLE wiki_pages ADD COLUMN
+            $database->execute("ALTER TABLE wiki_pages ADD COLUMN
 				locked ENUM('Y', 'N') DEFAULT 'N' NOT NULL AFTER REVISION");
             $this->set_version("ext_wiki_version", 2);
+        }
+        if ($this->get_version("ext_wiki_version") < 3) {
+            $database->standardise_boolean("wiki_pages", "locked", true);
+            $this->set_version("ext_wiki_version", 3);
         }
     }
 
@@ -193,7 +193,7 @@ class Wiki extends Extension
             }
         } elseif ($event->page_matches("wiki_admin/delete_revision")) {
             if ($user->can(Permissions::WIKI_ADMIN)) {
-                send_event(new WikiDeleteRevisionEvent($_POST["title"], $_POST["revision"]));
+                send_event(new WikiDeleteRevisionEvent($_POST["title"], (int)$_POST["revision"]));
                 $u_title = url_escape($_POST["title"]);
                 $page->set_mode(PageMode::REDIRECT);
                 $page->set_redirect(make_link("wiki/$u_title"));
@@ -225,16 +225,29 @@ class Wiki extends Extension
 
     public function onWikiUpdate(WikiUpdateEvent $event)
     {
-        global $database;
+        global $database, $config;
         $wpage = $event->wikipage;
+
+        $exists = $database->exists("SELECT id FROM wiki_pages WHERE title = :title", ["title"=>$wpage->title]);
+
         try {
-            $database->Execute(
-                "
-				INSERT INTO wiki_pages(owner_id, owner_ip, date, title, revision, locked, body)
-				VALUES (:owner_id, :owner_ip, now(), :title, :revision, :locked, :body)",
-                ["owner_id"=>$event->user->id, "owner_ip"=>$_SERVER['REMOTE_ADDR'],
-                "title"=>$wpage->title, "revision"=>$wpage->revision, "locked"=>$wpage->locked?'Y':'N', "body"=>$wpage->body]
-            );
+            if ($config->get_bool(WikiConfig::ENABLE_REVISIONS) || ! $exists) {
+                $database->execute(
+                    "
+                                INSERT INTO wiki_pages(owner_id, owner_ip, date, title, revision, locked, body)
+                                VALUES (:owner_id, :owner_ip, now(), :title, :revision, :locked, :body)",
+                    ["owner_id"=>$event->user->id, "owner_ip"=>$_SERVER['REMOTE_ADDR'],
+                    "title"=>$wpage->title, "revision"=>$wpage->revision, "locked"=>$wpage->locked, "body"=>$wpage->body]
+                );
+            } else {
+                $database->execute(
+                    "
+                                UPDATE wiki_pages SET owner_id=:owner_id, owner_ip=:owner_ip, date=now(), locked=:locked, body=:body
+                                WHERE title = :title ORDER BY revision DESC LIMIT 1",
+                    ["owner_id"=>$event->user->id, "owner_ip"=>$_SERVER['REMOTE_ADDR'],
+                    "title"=>$wpage->title, "locked"=>$wpage->locked, "body"=>$wpage->body]
+                );
+            }
         } catch (Exception $e) {
             throw new WikiUpdateException("Somebody else edited that page at the same time :-(");
         }
@@ -243,7 +256,7 @@ class Wiki extends Extension
     public function onWikiDeleteRevision(WikiDeleteRevisionEvent $event)
     {
         global $database;
-        $database->Execute(
+        $database->execute(
             "DELETE FROM wiki_pages WHERE title=:title AND revision=:rev",
             ["title"=>$event->title, "rev"=>$event->revision]
         );
@@ -252,7 +265,7 @@ class Wiki extends Extension
     public function onWikiDeletePage(WikiDeletePageEvent $event)
     {
         global $database;
-        $database->Execute(
+        $database->execute(
             "DELETE FROM wiki_pages WHERE title=:title",
             ["title" => $event->title]
         );
@@ -328,6 +341,78 @@ class Wiki extends Extension
         return new WikiPage($row);
     }
 
+    public static function format_tag_wiki_page(WikiPage $page)
+    {
+        global $database, $config;
+
+        $row = $database->get_row("
+                SELECT *
+                FROM tags
+                WHERE tag = :title
+                    ", ["title"=>$page->title]);
+
+        if (!empty($row)) {
+            $template = $config->get_string(WikiConfig::TAG_PAGE_TEMPLATE);
+
+            //CATEGORIES
+            if (class_exists("TagCategories")) {
+                $tagcategories = new TagCategories;
+                $tag_category_dict = $tagcategories->getKeyedDict();
+            }
+
+            //ALIASES
+            $aliases = $database->get_col("
+                SELECT oldtag
+                FROM aliases
+                WHERE newtag = :title
+                ORDER BY oldtag ASC
+                    ", ["title"=>$row["tag"]]);
+
+            if (!empty($aliases)) {
+                $template = str_replace("{aliases}", implode(", ", $aliases), $template);
+            } else {
+                $template = str_replace("{aliases}", $config->get_string(WikiConfig::EMPTY_TAGINFO), $template);
+            }
+
+            //Things before this line will be passed through html_escape.
+            $template = format_text($template);
+            //Things after this line will NOT be escaped!!! Be careful what you add.
+
+            if (class_exists("AutoTagger")) {
+                $auto_tags = $database->get_one("
+                    SELECT additional_tags
+                    FROM auto_tag
+                    WHERE tag = :title
+                        ", ["title"=>$row["tag"]]);
+
+                if (!empty($auto_tags)) {
+                    $auto_tags = Tag::explode($auto_tags);
+                    $f_auto_tags = [];
+
+                    $tag_list_t = new TagListTheme;
+
+                    foreach ($auto_tags as $a_tag) {
+                        $a_row = $database->get_row("
+                            SELECT *
+                            FROM tags
+                            WHERE tag = :title
+                                ", ["title"=>$a_tag]);
+
+                        $tag_html = $tag_list_t->return_tag($a_row, $tag_category_dict ?? []);
+                        array_push($f_auto_tags, $tag_html[1]);
+                    }
+
+                    $template = str_replace("{autotags}", implode(", ", $f_auto_tags), $template);
+                } else {
+                    $template = str_replace("{autotags}", format_text($config->get_string(WikiConfig::EMPTY_TAGINFO)), $template);
+                }
+            }
+        }
+
+        //Insert page body AT LAST to avoid replacing its contents with the actions above.
+        return str_replace("{body}", format_text($page->body), $template ?? "{body}");
+    }
+
     /**
         Diff implemented in pure php, written from scratch.
         Copyright (C) 2003  Daniel Unterberger <diff.phpnet@holomind.de>
@@ -359,7 +444,7 @@ class Wiki extends Extension
         Contact: d.u.diff@holomind.de <daniel unterberger>
     **/
 
-    private function arr_diff($f1, $f2, $show_equal = 0)
+    private function arr_diff(array $f1, array $f2, int $show_equal = 0): string
     {
         $c1         = 0 ;                   # current line of left
         $c2         = 0 ;                   # current line of right
@@ -538,7 +623,7 @@ class Wiki extends Extension
     /**
      *   callback function to format the diffence-lines with your 'style'
      */
-    private function formatline(int $nr1, int $nr2, string $stat, &$value): string
+    private function formatline(int $nr1, int $nr2, string $stat, $value): string
     { #change to $value if problems
         if (trim($value) == "") {
             return "";
@@ -548,17 +633,14 @@ class Wiki extends Extension
             case "=":
                 // return $nr1. " : $nr2 : = ".htmlentities( $value )  ."<br>";
                 return "$value\n";
-                break;
 
             case "+":
                 //return $nr1. " : $nr2 : + <font color='blue' >".htmlentities( $value )  ."</font><br>";
                 return "+++ $value\n";
-                break;
 
             case "-":
                 //return $nr1. " : $nr2 : - <font color='red' >".htmlentities( $value )  ."</font><br>";
                 return "--- $value\n";
-                break;
 
             default:
                 throw new RuntimeException("stat needs to be =, + or -");

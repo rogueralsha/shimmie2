@@ -8,6 +8,7 @@ use function MicroHTML\BR;
 use function MicroHTML\SELECT;
 use function MicroHTML\OPTION;
 use function MicroHTML\rawHTML;
+use MicroHTML\HTMLElement;
 use MicroCRUD\ActionColumn;
 use MicroCRUD\Column;
 use MicroCRUD\DateTimeColumn;
@@ -72,7 +73,7 @@ class ActorColumn extends Column
         );
     }
 
-    public function modify_input_for_read($input)
+    public function modify_input_for_read($input): array
     {
         list($un, $ip) = $input;
         if (empty($un)) {
@@ -84,7 +85,7 @@ class ActorColumn extends Column
         return [$un, $ip];
     }
 
-    public function display($row)
+    public function display($row): HTMLElement
     {
         $ret = emptyHTML();
         if ($row['username'] != "Anonymous") {
@@ -169,13 +170,16 @@ class MessageColumn extends Column
 
     protected function scan_entities(string $line)
     {
-        return preg_replace_callback("/Image #(\d+)/s", [$this, "link_image"], $line);
+        $line = preg_replace_callback("/Image #(\d+)/s", [$this, "link_image"], $line);
+        $line = preg_replace_callback("/Post #(\d+)/s", [$this, "link_image"], $line);
+        $line = preg_replace_callback("/>>(\d+)/s", [$this, "link_image"], $line);
+        return $line;
     }
 
     protected function link_image($id)
     {
         $iid = int_escape($id[1]);
-        return "<a href='".make_link("post/view/$iid")."'>Image #$iid</a>";
+        return "<a href='".make_link("post/view/$iid")."'>&gt;&gt;$iid</a>";
     }
 }
 
@@ -187,7 +191,7 @@ class LogTable extends Table
         $this->table = "score_log";
         $this->base_query = "SELECT * FROM score_log";
         $this->size = 100;
-        $this->limit = 1000000;
+        $this->limit = 100000;
         $this->set_columns([
             new ShortDateTimeColumn("date_sent", "Time"),
             new TextColumn("section", "Module"),
@@ -203,7 +207,7 @@ class LogTable extends Table
 class LogDatabase extends Extension
 {
     /** @var LogDatabaseTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     public function onInitExt(InitExtEvent $event)
     {
@@ -232,7 +236,7 @@ class LogDatabase extends Extension
 
     public function onSetupBuilding(SetupBuildingEvent $event)
     {
-        $sb = new SetupBlock("Logging (Database)");
+        $sb = $event->panel->create_new_block("Logging (Database)");
         $sb->add_choice_option("log_db_priority", [
             LOGGING_LEVEL_NAMES[SCORE_LOG_DEBUG] => SCORE_LOG_DEBUG,
             LOGGING_LEVEL_NAMES[SCORE_LOG_INFO] => SCORE_LOG_INFO,
@@ -240,7 +244,6 @@ class LogDatabase extends Extension
             LOGGING_LEVEL_NAMES[SCORE_LOG_ERROR] => SCORE_LOG_ERROR,
             LOGGING_LEVEL_NAMES[SCORE_LOG_CRITICAL] => SCORE_LOG_CRITICAL,
         ], "Debug Level: ");
-        $event->panel->add_block($sb);
     }
 
     public function onPageRequest(PageRequestEvent $event)

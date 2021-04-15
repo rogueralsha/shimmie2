@@ -3,7 +3,7 @@
 class ET extends Extension
 {
     /** @var ETTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     public function onPageRequest(PageRequestEvent $event)
     {
@@ -36,10 +36,10 @@ class ET extends Extension
     public function onCommand(CommandEvent $event)
     {
         if ($event->cmd == "help") {
-            print "\tshimmie-info\n";
+            print "\tinfo\n";
             print "\t\tList a bunch of info\n\n";
         }
-        if ($event->cmd == "shimmie-info") {
+        if ($event->cmd == "info") {
             print($this->to_yaml($this->get_info()));
         }
     }
@@ -116,7 +116,7 @@ class ET extends Extension
         return $info;
     }
 
-    private function to_yaml($info)
+    private function to_yaml(array $info): string
     {
         $data = "";
         foreach ($info as $title => $section) {

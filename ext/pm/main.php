@@ -2,7 +2,7 @@
 
 class SendPMEvent extends Event
 {
-    public $pm;
+    public PM $pm;
 
     public function __construct(PM $pm)
     {
@@ -13,22 +13,15 @@ class SendPMEvent extends Event
 
 class PM
 {
-    /** @var int */
-    public $id;
-    /** @var int */
-    public $from_id;
-    /** @var string */
-    public $from_ip;
-    /** @var int */
-    public $to_id;
+    public int $id;
+    public int $from_id;
+    public string $from_ip;
+    public int $to_id;
     /** @var mixed */
     public $sent_date;
-    /** @var string */
-    public $subject;
-    /** @var string */
-    public $message;
-    /** @var bool */
-    public $is_read;
+    public string $subject;
+    public string $message;
+    public bool $is_read;
 
     public function __construct($from_id=0, string $from_ip="0.0.0.0", int $to_id=0, string $subject="A Message", string $message="Some Text", bool $read=false)
     {
@@ -58,14 +51,14 @@ class PM
 class PrivMsg extends Extension
 {
     /** @var PrivMsgTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     public function onDatabaseUpgrade(DatabaseUpgradeEvent $event)
     {
-        global $config, $database;
+        global $database;
 
         // shortcut to latest
-        if ($config->get_int("pm_version") < 1) {
+        if ($this->get_version("pm_version") < 1) {
             $database->create_table("private_message", "
 				id SCORE_AIPK,
 				from_id INTEGER NOT NULL,
@@ -74,24 +67,27 @@ class PrivMsg extends Extension
 				sent_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 				subject VARCHAR(64) NOT NULL,
 				message TEXT NOT NULL,
-				is_read SCORE_BOOL NOT NULL DEFAULT SCORE_BOOL_N,
+				is_read BOOLEAN NOT NULL DEFAULT FALSE,
 				FOREIGN KEY (from_id) REFERENCES users(id) ON DELETE CASCADE,
 				FOREIGN KEY (to_id) REFERENCES users(id) ON DELETE CASCADE
 			");
             $database->execute("CREATE INDEX private_message__to_id ON private_message(to_id)");
-            $config->set_int("pm_version", 2);
-            log_info("pm", "extension installed");
+            $this->set_version("pm_version", 3);
         }
 
-        if ($config->get_int("pm_version") < 2) {
+        if ($this->get_version("pm_version") < 2) {
             log_info("pm", "Adding foreign keys to private messages");
-            $database->Execute("delete from private_message where to_id not in (select id from users);");
-            $database->Execute("delete from private_message where from_id not in (select id from users);");
-            $database->Execute("ALTER TABLE private_message
+            $database->execute("delete from private_message where to_id not in (select id from users);");
+            $database->execute("delete from private_message where from_id not in (select id from users);");
+            $database->execute("ALTER TABLE private_message
 			ADD FOREIGN KEY (from_id) REFERENCES users(id) ON DELETE CASCADE,
 			ADD FOREIGN KEY (to_id) REFERENCES users(id) ON DELETE CASCADE;");
-            $config->set_int("pm_version", 2);
-            log_info("pm", "extension installed");
+            $this->set_version("pm_version", 2);
+        }
+
+        if ($this->get_version("pm_version") < 3) {
+            $database->standardise_boolean("private_message", "is_read", true);
+            $this->set_version("pm_version", 3);
         }
     }
 
@@ -106,7 +102,6 @@ class PrivMsg extends Extension
             }
         }
     }
-
 
     public function onUserBlockBuilding(UserBlockBuildingEvent $event)
     {
@@ -146,7 +141,7 @@ class PrivMsg extends Extension
                         } elseif (($pm["to_id"] == $user->id) || $user->can(Permissions::VIEW_OTHER_PMS)) {
                             $from_user = User::by_id((int)$pm["from_id"]);
                             if ($pm["to_id"] == $user->id) {
-                                $database->execute("UPDATE private_message SET is_read='Y' WHERE id = :id", ["id" => $pm_id]);
+                                $database->execute("UPDATE private_message SET is_read=true WHERE id = :id", ["id" => $pm_id]);
                                 $cache->delete("pm-count-{$user->id}");
                             }
                             $this->theme->display_message($page, $from_user, $user, new PM($pm));
@@ -210,7 +205,7 @@ class PrivMsg extends Extension
     }
 
 
-    private function get_pms(User $user)
+    private function get_pms(User $user): array
     {
         global $database;
 
@@ -241,7 +236,7 @@ class PrivMsg extends Extension
 					FROM private_message
 					WHERE to_id = :to_id
 					AND is_read = :is_read
-			", ["to_id" => $user->id, "is_read" => "N"]);
+			", ["to_id" => $user->id, "is_read" => false]);
             $cache->set("pm-count:{$user->id}", $count, 600);
         }
         return $count;

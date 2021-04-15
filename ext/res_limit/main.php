@@ -19,16 +19,16 @@ class ResolutionLimit extends Extension
         $image = $event->image;
 
         if ($min_w > 0 && $image->width < $min_w) {
-            throw new UploadException("Image too small");
+            throw new UploadException("Post too small");
         }
         if ($min_h > 0 && $image->height < $min_h) {
-            throw new UploadException("Image too small");
+            throw new UploadException("Post too small");
         }
         if ($max_w > 0 && $image->width > $max_w) {
-            throw new UploadException("Image too large");
+            throw new UploadException("Post too large");
         }
         if ($max_h > 0 && $image->height > $max_h) {
-            throw new UploadException("Image too large");
+            throw new UploadException("Post too large");
         }
 
         if (count($ratios) > 0) {
@@ -49,7 +49,7 @@ class ResolutionLimit extends Extension
             }
             if ($valids > 0 && !$ok) {
                 throw new UploadException(
-                    "Image needs to be in one of these ratios: ".
+                    "Post needs to be in one of these ratios: ".
                     html_escape($config->get_string("upload_ratios", ""))
                 );
             }
@@ -58,7 +58,7 @@ class ResolutionLimit extends Extension
 
     public function onSetupBuilding(SetupBuildingEvent $event)
     {
-        $sb = new SetupBlock("Resolution Limits");
+        $sb = $event->panel->create_new_block("Resolution Limits");
 
         $sb->add_label("Min ");
         $sb->add_int_option("upload_min_width");
@@ -77,7 +77,5 @@ class ResolutionLimit extends Extension
         $sb->add_label("<br>Ratios ");
         $sb->add_text_option("upload_ratios");
         $sb->add_label("<br>(eg. '4:3 16:9', blank for no limit)");
-
-        $event->panel->add_block($sb);
     }
 }

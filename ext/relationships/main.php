@@ -2,8 +2,8 @@
 
 class ImageRelationshipSetEvent extends Event
 {
-    public $child_id;
-    public $parent_id;
+    public int $child_id;
+    public int $parent_id;
 
     public function __construct(int $child_id, int $parent_id)
     {
@@ -17,7 +17,7 @@ class ImageRelationshipSetEvent extends Event
 class Relationships extends Extension
 {
     /** @var RelationshipsTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     public const NAME = "Relationships";
 
@@ -31,18 +31,20 @@ class Relationships extends Extension
     {
         global $database;
 
-        // Create the database tables
         if ($this->get_version("ext_relationships_version") < 1) {
             $database->execute("ALTER TABLE images ADD parent_id INT");
-            $database->execute($database->scoreql_to_sql("ALTER TABLE images ADD has_children SCORE_BOOL DEFAULT SCORE_BOOL_N NOT NULL"));
+            $database->execute("ALTER TABLE images ADD has_children BOOLEAN DEFAULT FALSE NOT NULL");
             $database->execute("CREATE INDEX images__parent_id ON images(parent_id)");
-
-            $this->set_version("ext_relationships_version", 1);
+            $database->execute("CREATE INDEX images__has_children ON images(has_children)");
+            $this->set_version("ext_relationships_version", 3);
         }
         if ($this->get_version("ext_relationships_version") < 2) {
             $database->execute("CREATE INDEX images__has_children ON images(has_children)");
-
             $this->set_version("ext_relationships_version", 2);
+        }
+        if ($this->get_version("ext_relationships_version") < 3) {
+            $database->standardise_boolean("images", "has_children");
+            $this->set_version("ext_relationships_version", 3);
         }
     }
 
@@ -204,9 +206,8 @@ class Relationships extends Extension
             ["pid"=>$parent_id]
         );
         $database->execute(
-            "UPDATE images
-            SET has_children = :has_children WHERE id = :pid",
-            ["has_children"=>$database->scoresql_value_prepare($children>0), "pid"=>$parent_id]
+            "UPDATE images SET has_children = :has_children WHERE id = :pid",
+            ["has_children"=>$children>0, "pid"=>$parent_id]
         );
     }
 }

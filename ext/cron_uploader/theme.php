@@ -1,5 +1,16 @@
 <?php declare(strict_types=1);
 
+use function MicroHTML\LABEL;
+use function MicroHTML\TABLE;
+use function MicroHTML\TBODY;
+use function MicroHTML\TFOOT;
+use function MicroHTML\TR;
+use function MicroHTML\TH;
+use function MicroHTML\TD;
+use function MicroHTML\INPUT;
+use function MicroHTML\rawHTML;
+use function MicroHTML\emptyHTML;
+
 class CronUploaderTheme extends Themelet
 {
     public function display_documentation(
@@ -11,11 +22,18 @@ class CronUploaderTheme extends Themelet
         string $cron_url,
         ?array $log_entries
     ) {
-        global $page;
+        global $page, $config, $user_config;
 
+        $info_html = "";
 
+        $page->set_title("Cron Uploader");
+        $page->set_heading("Cron Uploader");
 
-        $info_html = "<b>Information</b>
+        if (!$config->get_bool(UserConfig::ENABLE_API_KEYS)) {
+            $info_html .= "<b style='color:red'>THIS EXTENSION REQUIRES USER API KEYS TO BE ENABLED IN <a href=''>BOARD ADMIN</a></b>";
+        }
+
+        $info_html .= "<b>Information</b>
 			<br>
 			<table style='width:470px;'>
 			" . ($running ? "<tr><td colspan='4'><b style='color:red'>Cron upload is currently running</b></td></tr>" : "") . "
@@ -41,9 +59,13 @@ class CronUploaderTheme extends Themelet
 			<td>{$failed_dirinfo['path']}</td>
 			</tr></table>
 
-			<br>Cron Command: <input type='text' size='60' value='$cron_cmd'><br>
-			Create a cron job with the command above.<br/>
-				Read the documentation if you're not sure what to do.<br>";
+			<div>Cron Command: <input type='text' size='60' value='$cron_cmd' id='cron_command'>
+			<button onclick='copyInputToClipboard(\"cron_command\")'>Copy</button></div>
+			<div>Create a cron job with the command above.
+				Read the documentation if you're not sure what to do.</div>
+            <div>URL: <input type='text' size='60' value='$cron_url' id='cron_url'>
+            <button onclick='copyInputToClipboard(\"cron_url\")'>Copy</button></div>";
+
 
         $install_html = "
 			This cron uploader is fairly easy to use but has to be configured first.
@@ -54,7 +76,7 @@ class CronUploaderTheme extends Themelet
 			    <li>Create a cron job or something else that can open a url on specified times.
                     <br/>cron is a service that runs commands over and over again on a a schedule. You can set up cron (or any similar tool) to run the command above to trigger the import on whatever schedule you desire.
 			        <br />If you're not sure how to do this, you can give the command to your web host and you can ask them to create the cron job for you.
-			        <br />When you create the cron job, you choose when to upload new images.</li>
+			        <br />When you create the cron job, you choose when to upload new posts.</li>
             </ol>";
 
 
@@ -76,12 +98,10 @@ class CronUploaderTheme extends Themelet
                 <li>If an import is already running, another cannot start until it is done.</li>
                 <li>Each time it runs it will import for up to ".number_format($max_time)." seconds. This is controlled by the PHP max execution time.</li>
                 <li>Uploaded images will be moved to the 'uploaded' directory into a subfolder named after the time the import started. It's recommended that you remove everything out of this directory from time to time. If you have admin controls enabled, this can be done from <a href='".make_link("admin")."'>Board Admin</a>.</li>
-                <li>If you enable the db logging extension, you can view the log output on this screen. Otherwise the log will be written to a file at ".CronUploaderConfig::get_dir().DIRECTORY_SEPARATOR."uploads.log</li>
+                <li>If you enable the db logging extension, you can view the log output on this screen. Otherwise the log will be written to a file at ".$user_config->get_string(CronUploaderConfig::DIR).DIRECTORY_SEPARATOR."uploads.log</li>
 			</ul>
         ";
 
-        $page->set_title("Cron Uploader");
-        $page->set_heading("Cron Uploader");
 
         $block = new Block("Cron Uploader", $info_html, "main", 10);
         $block_install = new Block("Setup Guide", $install_html, "main", 30);
@@ -99,6 +119,40 @@ class CronUploaderTheme extends Themelet
             $block = new Block("Log", $log_html, "main", 40);
             $page->add_block($block);
         }
+    }
+
+    public function get_user_options(string $dir, bool $stop_on_error, int $log_level, bool $all_logs): string
+    {
+        $form = SHM_SIMPLE_FORM(
+            "user_admin/cron_uploader",
+            TABLE(
+                ["class"=>"form"],
+                TBODY(
+                    TR(
+                        TH("Cron Uploader")
+                    ),
+                    TR(
+                        TH("Root dir"),
+                        TD(INPUT(["type"=>'text', "name"=>'name', "required"=>true]))
+                    ),
+                    TR(
+                        TH(),
+                        TD(
+                            LABEL(INPUT(["type"=>'checkbox', "name"=>'stop_on_error']), "Stop On Error")
+                        )
+                    ),
+                    TR(
+                        TH(rawHTML("Repeat&nbsp;Password")),
+                        TD(INPUT(["type"=>'password', "name"=>'pass2', "required"=>true]))
+                    )
+                ),
+                TFOOT(
+                    TR(TD(["colspan"=>"2"], INPUT(["type"=>"submit", "value"=>"Save Settings"])))
+                )
+            )
+        );
+        $html = emptyHTML($form);
+        return (string)$html;
     }
 
     public function display_form(array $failed_dirs)

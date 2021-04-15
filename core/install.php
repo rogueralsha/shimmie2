@@ -49,7 +49,6 @@ function get_dsn()
 {
     if (getenv("INSTALL_DSN")) {
         $dsn = getenv("INSTALL_DSN");
-        ;
     } elseif (@$_POST["database_type"] == DatabaseDriver::SQLITE) {
         /** @noinspection PhpUnhandledExceptionInspection */
         $id = bin2hex(random_bytes(5));
@@ -69,7 +68,7 @@ function do_install($dsn)
         create_tables(new Database($dsn));
         write_config($dsn);
     } catch (InstallerException $e) {
-        die_nicely($e->title, $e->body, $e->code);
+        die_nicely($e->title, $e->body, $e->exit_code);
     }
 }
 
@@ -256,7 +255,7 @@ function create_tables(Database $db)
 			width INTEGER NOT NULL,
 			height INTEGER NOT NULL,
 			posted TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			locked SCORE_BOOL NOT NULL DEFAULT SCORE_BOOL_N,
+			locked BOOLEAN NOT NULL DEFAULT FALSE,
 			FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT
 		");
         $db->execute("CREATE INDEX images_owner_id_idx ON images(owner_id)", []);
@@ -282,13 +281,19 @@ function create_tables(Database $db)
         $db->execute("CREATE INDEX images_tags_tag_id_idx ON image_tags(tag_id)", []);
 
         $db->execute("INSERT INTO config(name, value) VALUES('db_version', 11)");
-        $db->commit();
+
+        // mysql auto-commits when creating a table, so the transaction
+        // is closed; other databases need to commit
+        if ($db->is_transaction_open()) {
+            $db->commit();
+        }
     } catch (PDOException $e) {
         throw new InstallerException(
             "PDO Error:",
             "<p>An error occurred while trying to create the database tables necessary for Shimmie.</p>
 		    <p>Please check and ensure that the database configuration options are all correct.</p>
-		    <p>{$e->getMessage()}</p>",
+		    <p>{$e->getMessage()}</p>
+		    ",
             3
         );
     }

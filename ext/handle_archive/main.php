@@ -2,7 +2,7 @@
 
 class ArchiveFileHandler extends DataHandlerExtension
 {
-    protected $SUPPORTED_MIME = [MimeType::ZIP];
+    protected array $SUPPORTED_MIME = [MimeType::ZIP];
 
     public function onInitExt(InitExtEvent $event)
     {
@@ -12,11 +12,10 @@ class ArchiveFileHandler extends DataHandlerExtension
 
     public function onSetupBuilding(SetupBuildingEvent $event)
     {
-        $sb = new SetupBlock("Archive Handler Options");
+        $sb = $event->panel->create_new_block("Archive Handler Options");
         $sb->add_text_option("archive_tmp_dir", "Temporary folder: ");
         $sb->add_text_option("archive_extract_command", "<br>Extraction command: ");
         $sb->add_label("<br>%f for archive, %d for temporary directory");
-        $event->panel->add_block($sb);
     }
 
     public function onDataUpload(DataUploadEvent $event)
@@ -57,7 +56,7 @@ class ArchiveFileHandler extends DataHandlerExtension
         return false;
     }
 
-    protected function create_thumb(string $hash, string $type): bool
+    protected function create_thumb(string $hash, string $mime): bool
     {
         return false;
     }

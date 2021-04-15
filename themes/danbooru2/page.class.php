@@ -44,7 +44,7 @@ Tips
 
 class Page extends BasePage
 {
-    public $left_enabled = true;
+    public bool $left_enabled = true;
     public function disable_left()
     {
         $this->left_enabled = false;
@@ -73,7 +73,7 @@ class Page extends BasePage
                     $sub_block_html .= $block->body; // $this->block_to_html($block, true);
                     break;
                 case "main":
-                    if ($block->header == "Images") {
+                    if ($block->header == "Posts") {
                         $block->header = "&nbsp;";
                     }
                     $main_block_html .= $block->get_html(false);

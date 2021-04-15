@@ -3,7 +3,7 @@
 class TagHistory extends Extension
 {
     /** @var TagHistoryTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     // in before tags are actually set, so that "get current tags" works
     public function get_priority(): int
@@ -61,12 +61,11 @@ class TagHistory extends Extension
     // so let's default to -1 and the user can go advanced if
     // they /really/ want to
     public function onSetupBuilding(SetupBuildingEvent $event) {
-        $sb = new SetupBlock("Tag History");
+        $sb = $event->panel->create_new_block("Tag History");
         $sb->add_label("Limit to ");
         $sb->add_int_option("history_limit");
         $sb->add_label(" entires per image");
         $sb->add_label("<br>(-1 for unlimited)");
-        $event->panel->add_block($sb);
     }
     */
 
@@ -114,13 +113,13 @@ class TagHistory extends Extension
         }
 
         if ($this->get_version("ext_tag_history_version") == 1) {
-            $database->Execute("ALTER TABLE tag_histories ADD COLUMN user_id INTEGER NOT NULL");
-            $database->Execute("ALTER TABLE tag_histories ADD COLUMN date_set TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP");
+            $database->execute("ALTER TABLE tag_histories ADD COLUMN user_id INTEGER NOT NULL");
+            $database->execute("ALTER TABLE tag_histories ADD COLUMN date_set TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP");
             $this->set_version("ext_tag_history_version", 2);
         }
 
         if ($this->get_version("ext_tag_history_version") == 2) {
-            $database->Execute("ALTER TABLE tag_histories ADD COLUMN user_ip CHAR(15) NOT NULL");
+            $database->execute("ALTER TABLE tag_histories ADD COLUMN user_ip CHAR(15) NOT NULL");
             $this->set_version("ext_tag_history_version", 3);
         }
     }
@@ -159,7 +158,7 @@ class TagHistory extends Extension
             throw new ImageDoesNotExist("Error: cannot find any image with the ID = ". $stored_image_id);
         }
 
-        log_debug("tag_history", 'Reverting tags of Image #'.$stored_image_id.' to ['.$stored_tags.']');
+        log_debug("tag_history", 'Reverting tags of >>'.$stored_image_id.' to ['.$stored_tags.']');
         // all should be ok so we can revert by firing the SetUserTags event.
         send_event(new TagSetEvent($image, Tag::explode($stored_tags)));
 
@@ -325,10 +324,10 @@ class TagHistory extends Extension
                     //throw new ImageDoesNotExist("Error: cannot find any image with the ID = ". $stored_image_id);
                 }
 
-                log_debug("tag_history", 'Reverting tags of Image #'.$stored_image_id.' to ['.$stored_tags.']');
+                log_debug("tag_history", 'Reverting tags of >>'.$stored_image_id.' to ['.$stored_tags.']');
                 // all should be ok so we can revert by firing the SetTags event.
                 send_event(new TagSetEvent($image, Tag::explode($stored_tags)));
-                $this->theme->add_status('Reverted Change', 'Reverted Image #'.$image_id.' to Tag History #'.$stored_result_id.' ('.$row['tags'].')');
+                $this->theme->add_status('Reverted Change', 'Reverted >>'.$image_id.' to Tag History #'.$stored_result_id.' ('.$row['tags'].')');
             }
         }
 

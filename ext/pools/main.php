@@ -21,9 +21,8 @@ class PoolCreationException extends SCoreException
 
 class PoolAddPostsEvent extends Event
 {
-    public $pool_id;
-
-    public $posts = [];
+    public int $pool_id;
+    public array $posts = [];
 
     public function __construct(int $pool_id, array $posts)
     {
@@ -35,12 +34,11 @@ class PoolAddPostsEvent extends Event
 
 class PoolCreationEvent extends Event
 {
-    public $title;
-    public $user;
-    public $public;
-    public $description;
-
-    public $new_id = -1;
+    public string $title;
+    public User $user;
+    public bool $public;
+    public string $description;
+    public int $new_id = -1;
 
     public function __construct(
         string $title,
@@ -58,16 +56,27 @@ class PoolCreationEvent extends Event
     }
 }
 
+class PoolDeletionEvent extends Event
+{
+    public int $pool_id;
+
+    public function __construct(int $pool_id)
+    {
+        parent::__construct();
+        $this->pool_id = $pool_id;
+    }
+}
+
 class Pool
 {
-    public $id;
-    public $user_id;
-    public $user_name;
-    public $public;
-    public $title;
-    public $description;
-    public $date;
-    public $posts;
+    public int $id;
+    public int $user_id;
+    public ?string $user_name;
+    public bool $public;
+    public string $title;
+    public string $description;
+    public string $date;
+    public int $posts;
 
     public function __construct(array $row)
     {
@@ -95,7 +104,7 @@ function _image_to_id(Image $image): int
 class Pools extends Extension
 {
     /** @var PoolsTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     public function onInitExt(InitExtEvent $event)
     {
@@ -121,7 +130,7 @@ class Pools extends Extension
             $database->create_table("pools", "
 					id SCORE_AIPK,
 					user_id INTEGER NOT NULL,
-					public SCORE_BOOL NOT NULL DEFAULT SCORE_BOOL_N,
+					public BOOLEAN NOT NULL DEFAULT FALSE,
 					title VARCHAR(255) NOT NULL,
 					description TEXT,
 					date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -146,7 +155,7 @@ class Pools extends Extension
 					FOREIGN KEY (pool_id) REFERENCES pools(id) ON UPDATE CASCADE ON DELETE CASCADE,
 					FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE
 					");
-            $this->set_version("ext_pools_version", 3);
+            $this->set_version("ext_pools_version", 4);
 
             log_info("pools", "extension installed");
         }
@@ -157,22 +166,24 @@ class Pools extends Extension
 
             $this->set_version("ext_pools_version", 3); // skip 2
         }
+        if ($this->get_version("ext_pools_version") < 4) {
+            $database->standardise_boolean("pools", "public");
+            $this->set_version("ext_pools_version", 4);
+        }
     }
 
     // Add a block to the Board Config / Setup
     public function onSetupBuilding(SetupBuildingEvent $event)
     {
-        $sb = new SetupBlock("Pools");
+        $sb = $event->panel->create_new_block("Pools");
         $sb->add_int_option(PoolsConfig::MAX_IMPORT_RESULTS, "Max results on import: ");
-        $sb->add_int_option(PoolsConfig::IMAGES_PER_PAGE, "<br>Images per page: ");
+        $sb->add_int_option(PoolsConfig::IMAGES_PER_PAGE, "<br>Posts per page: ");
         $sb->add_int_option(PoolsConfig::LISTS_PER_PAGE, "<br>Index list items per page: ");
         $sb->add_int_option(PoolsConfig::UPDATED_PER_PAGE, "<br>Updated list items per page: ");
         $sb->add_bool_option(PoolsConfig::INFO_ON_VIEW_IMAGE, "<br>Show pool info on image: ");
         $sb->add_bool_option(PoolsConfig::SHOW_NAV_LINKS, "<br>Show 'Prev' & 'Next' links when viewing pool images: ");
         $sb->add_bool_option(PoolsConfig::AUTO_INCREMENT_ORDER, "<br>Autoincrement order when post is added to pool:");
         //$sb->add_bool_option(PoolsConfig::ADDER_ON_VIEW_IMAGE, "<br>Show pool adder on image: ");
-
-        $event->panel->add_block($sb);
     }
 
     public function onPageNavBuilding(PageNavBuildingEvent $event)
@@ -225,7 +236,7 @@ class Pools extends Extension
                         $event = new PoolCreationEvent(
                             $title,
                             $user,
-                            $_POST["public"] === "Y",
+                            bool_escape($_POST["public"]),
                             $_POST["description"]
                         );
 
@@ -379,7 +390,7 @@ class Pools extends Extension
                     // Completely remove the given pool.
                     //  -> Only admins and owners may do this
                     if ($user->can(Permissions::POOLS_ADMIN) || $user->id == $pool->user_id) {
-                        $this->nuke_pool($pool_id);
+                        send_event(new PoolDeletionEvent($pool_id));
                         $page->set_mode(PageMode::REDIRECT);
                         $page->set_redirect(make_link("pool/list"));
                     } else {
@@ -762,6 +773,7 @@ class Pools extends Extension
             INNER JOIN images AS i ON i.id = p.image_id
             WHERE p.pool_id = :pid
         ";
+        $params = [];
 
         // WE CHECK IF THE EXTENSION RATING IS INSTALLED, WHICH VERSION AND IF IT
         // WORKS TO SHOW/HIDE SAFE, QUESTIONABLE, EXPLICIT AND UNRATED IMAGES FROM USER
@@ -769,7 +781,8 @@ class Pools extends Extension
             $query .= "AND i.rating IN (".Ratings::privs_to_sql(Ratings::get_user_class_privs($user)).")";
         }
         if (Extension::is_enabled(TrashInfo::KEY)) {
-            $query .= $database->scoreql_to_sql(" AND trash = SCORE_BOOL_N ");
+            $query .= " AND trash != :true";
+            $params["true"] = true;
         }
 
         $result = $database->get_all(
@@ -778,12 +791,16 @@ class Pools extends Extension
 					$query
 					ORDER BY p.image_order ASC
 					LIMIT :l OFFSET :o",
-            ["pid" => $poolID, "l" => $imagesPerPage, "o" => $pageNumber * $imagesPerPage]
+            [
+                "pid" => $poolID,
+                "l" => $imagesPerPage,
+                "o" => $pageNumber * $imagesPerPage,
+            ] + $params
         );
 
         $totalPages = (int)ceil((int)$database->get_one(
             "SELECT COUNT(*) FROM pool_images p $query",
-            ["pid" => $poolID]
+            ["pid" => $poolID] + $params
         ) / $imagesPerPage);
 
         $images = [];
@@ -797,19 +814,16 @@ class Pools extends Extension
     /**
      * HERE WE NUKE ENTIRE POOL. WE REMOVE POOLS AND POSTS FROM REMOVED POOL AND HISTORIES ENTRIES FROM REMOVED POOL.
      */
-    private function nuke_pool(int $poolID)
+    public function onPoolDeletion(PoolDeletionEvent $event)
     {
         global $user, $database;
+        $poolID = $event->pool_id;
 
-        $p_id = (int)$database->get_one("SELECT user_id FROM pools WHERE id = :pid", ["pid" => $poolID]);
-        if ($user->can(Permissions::POOLS_ADMIN)) {
+        $owner_id = (int)$database->get_one("SELECT user_id FROM pools WHERE id = :pid", ["pid" => $poolID]);
+        if ($owner_id == $user->id || $user->can(Permissions::POOLS_ADMIN)) {
             $database->execute("DELETE FROM pool_history WHERE pool_id = :pid", ["pid" => $poolID]);
             $database->execute("DELETE FROM pool_images WHERE pool_id = :pid", ["pid" => $poolID]);
             $database->execute("DELETE FROM pools WHERE id = :pid", ["pid" => $poolID]);
-        } elseif ($user->id == $p_id) {
-            $database->execute("DELETE FROM pool_history WHERE pool_id = :pid", ["pid" => $poolID]);
-            $database->execute("DELETE FROM pool_images WHERE pool_id = :pid", ["pid" => $poolID]);
-            $database->execute("DELETE FROM pools WHERE id = :pid AND user_id = :uid", ["pid" => $poolID, "uid" => $user->id]);
         }
     }
 

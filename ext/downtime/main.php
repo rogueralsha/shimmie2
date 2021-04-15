@@ -3,7 +3,7 @@
 class Downtime extends Extension
 {
     /** @var DowntimeTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     public function get_priority(): int
     {
@@ -12,10 +12,9 @@ class Downtime extends Extension
 
     public function onSetupBuilding(SetupBuildingEvent $event)
     {
-        $sb = new SetupBlock("Downtime");
+        $sb = $event->panel->create_new_block("Downtime");
         $sb->add_bool_option("downtime", "Disable non-admin access: ");
         $sb->add_longtext_option("downtime_message", "<br>");
-        $event->panel->add_block($sb);
     }
 
     public function onPageRequest(PageRequestEvent $event)
@@ -36,7 +35,7 @@ class Downtime extends Extension
         }
     }
 
-    private function is_safe_page(PageRequestEvent $event)
+    private function is_safe_page(PageRequestEvent $event): bool
     {
         if ($event->page_matches("user_admin/login")) {
             return true;

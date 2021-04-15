@@ -48,7 +48,7 @@ class IPBanTable extends Table
 
 class RemoveIPBanEvent extends Event
 {
-    public $id;
+    public int $id;
 
     public function __construct(int $id)
     {
@@ -59,10 +59,10 @@ class RemoveIPBanEvent extends Event
 
 class AddIPBanEvent extends Event
 {
-    public $ip;
-    public $mode;
-    public $reason;
-    public $expires;
+    public string $ip;
+    public string $mode;
+    public string $reason;
+    public ?string $expires;
 
     public function __construct(string $ip, string $mode, string $reason, ?string $expires)
     {
@@ -77,7 +77,7 @@ class AddIPBanEvent extends Event
 class IPBan extends Extension
 {
     /** @var IPBanTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     public function get_priority(): int
     {
@@ -113,7 +113,7 @@ class IPBan extends Extension
             $ips = []; # "0.0.0.0" => 123;
             $networks = []; # "0.0.0.0/32" => 456;
             foreach ($rows as $ip => $id) {
-                if (strstr($ip, '/')) {
+                if (str_contains($ip, '/')) {
                     $networks[$ip] = $id;
                 } else {
                     $ips[$ip] = $id;
@@ -209,7 +209,7 @@ class IPBan extends Extension
     {
         global $config;
 
-        $sb = new SetupBlock("IP Ban");
+        $sb = $event->panel->create_new_block("IP Ban");
         $sb->add_longtext_option("ipban_message", 'Message to show to banned users:<br>(with $IP, $DATE, $ADMIN, $REASON, and $CONTACT)');
         if ($config->get_string("ipban_message_ghost")) {
             $sb->add_longtext_option("ipban_message_ghost", 'Message to show to ghost users:');
@@ -217,7 +217,6 @@ class IPBan extends Extension
         if ($config->get_string("ipban_message_anon-ghost")) {
             $sb->add_longtext_option("ipban_message_anon-ghost", 'Message to show to ghost anons:');
         }
-        $event->panel->add_block($sb);
     }
 
     public function onPageSubNavBuilding(PageSubNavBuildingEvent $event)
@@ -253,7 +252,7 @@ class IPBan extends Extension
         global $cache, $database;
         $ban = $database->get_row("SELECT * FROM bans WHERE id = :id", ["id"=>$event->id]);
         if ($ban) {
-            $database->Execute("DELETE FROM bans WHERE id = :id", ["id"=>$event->id]);
+            $database->execute("DELETE FROM bans WHERE id = :id", ["id"=>$event->id]);
             $cache->delete("ip_bans");
             $cache->delete("network_bans");
             log_info("ipban", "Removed {$ban['ip']}'s ban");
@@ -283,7 +282,7 @@ class IPBan extends Extension
         // ===
 
         if ($this->get_version("ext_ipban_version") < 1) {
-            $database->Execute("CREATE TABLE bans (
+            $database->execute("CREATE TABLE bans (
 				id int(11) NOT NULL auto_increment,
 				ip char(15) default NULL,
 				date TIMESTAMP default NULL,
@@ -327,7 +326,7 @@ class IPBan extends Extension
         }
 
         if ($this->get_version("ext_ipban_version") == 6) {
-            $database->Execute("ALTER TABLE bans ADD FOREIGN KEY (banner_id) REFERENCES users(id) ON DELETE CASCADE");
+            $database->execute("ALTER TABLE bans ADD FOREIGN KEY (banner_id) REFERENCES users(id) ON DELETE CASCADE");
             $this->set_version("ext_ipban_version", 7);
         }
 

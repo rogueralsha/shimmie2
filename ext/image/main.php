@@ -8,7 +8,7 @@ require_once "config.php";
 class ImageIO extends Extension
 {
     /** @var ImageIOTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     const COLLISION_OPTIONS = [
         'Error'=>ImageConfig::COLLISION_ERROR,
@@ -17,7 +17,7 @@ class ImageIO extends Extension
 
     const ON_DELETE_OPTIONS = [
         'Return to post list'=>ImageConfig::ON_DELETE_LIST,
-        'Go to next image'=>ImageConfig::ON_DELETE_NEXT
+        'Go to next post'=>ImageConfig::ON_DELETE_NEXT
     ];
 
     const EXIF_READ_FUNCTION = "exif_read_data";
@@ -100,7 +100,7 @@ class ImageIO extends Extension
                     $page->set_redirect(make_link('upload/replace/'.$image->id));
                 } else {
                     /* Invalid image ID */
-                    throw new ImageReplaceException("Image to replace does not exist.");
+                    throw new ImageReplaceException("Post to replace does not exist.");
                 }
             }
         } elseif ($event->page_matches("image")) {
@@ -155,10 +155,12 @@ class ImageIO extends Extension
                         send_event(new SourceSetEvent($existing, $_GET['source']));
                     }
                     $event->merged = true;
-                    $event->image = Image::by_id($existing->id);
+                    $im = Image::by_id($existing->id);
+                    assert(!is_null($image));
+                    $event->image = $im;
                     return;
                 } else {
-                    $error = "Image <a href='".make_link("post/view/{$existing->id}")."'>{$existing->id}</a> ".
+                    $error = "Post <a href='".make_link("post/view/{$existing->id}")."'>{$existing->id}</a> ".
                         "already has hash {$image->hash}:<p>".$this->theme->build_thumb_html($existing);
                     throw new ImageAdditionException($error);
                 }
@@ -167,7 +169,7 @@ class ImageIO extends Extension
             // actually insert the info
             $image->save_to_db();
 
-            log_info("image", "Uploaded Image #{$image->id} ({$image->hash})");
+            log_info("image", "Uploaded >>{$image->id} ({$image->hash})");
 
             # at this point in time, the image's tags haven't really been set,
             # and so, having $image->tag_array set to something is a lie (but
@@ -179,7 +181,7 @@ class ImageIO extends Extension
             send_event(new TagSetEvent($image, $tags_to_set));
 
             if ($image->source !== null) {
-                log_info("core-image", "Source for Image #{$image->id} set to: {$image->source}");
+                log_info("core-image", "Source for >>{$image->id} set to: {$image->source}");
             }
         } catch (ImageAdditionException $e) {
             throw new UploadException($e->error);
@@ -205,12 +207,12 @@ class ImageIO extends Extension
             $existing = Image::by_id($id);
 
             if (is_null($existing)) {
-                throw new ImageReplaceException("Image to replace does not exist!");
+                throw new ImageReplaceException("Post to replace does not exist!");
             }
 
             $duplicate = Image::by_hash($image->hash);
             if (!is_null($duplicate) && $duplicate->id!=$id) {
-                $error = "Image <a href='" . make_link("post/view/{$duplicate->id}") . "'>{$duplicate->id}</a> " .
+                $error = "Post <a href='" . make_link("post/view/{$duplicate->id}") . "'>{$duplicate->id}</a> " .
                     "already has hash {$image->hash}:<p>" . $this->theme->build_thumb_html($duplicate);
                 throw new ImageReplaceException($error);
             }
@@ -236,7 +238,7 @@ class ImageIO extends Extension
             /* Generate new thumbnail */
             send_event(new ThumbnailGenerationEvent($image->hash, strtolower($image->get_mime())));
 
-            log_info("image", "Replaced Image #{$id} with ({$image->hash})");
+            log_info("image", "Replaced >>{$id} with ({$image->hash})");
         } catch (ImageReplaceException $e) {
             throw new UploadException($e->error);
         }
@@ -249,30 +251,29 @@ class ImageIO extends Extension
         $i_days_old = ((time() - strtotime($event->display_user->join_date)) / 86400) + 1;
         $h_image_rate = sprintf("%.1f", ($i_image_count / $i_days_old));
         $images_link = make_link("post/list/user=$u_name/1");
-        $event->add_stats("<a href='$images_link'>Images uploaded</a>: $i_image_count, $h_image_rate per day");
+        $event->add_stats("<a href='$images_link'>Posts uploaded</a>: $i_image_count, $h_image_rate per day");
     }
 
     public function onSetupBuilding(SetupBuildingEvent $event)
     {
         global $config;
 
-        $sb = new SetupBlock("Image Options");
+        $sb = $event->panel->create_new_block("Post Options");
         $sb->start_table();
         $sb->position = 30;
         // advanced only
         //$sb->add_text_option(ImageConfig::ILINK, "Image link: ");
         //$sb->add_text_option(ImageConfig::TLINK, "<br>Thumbnail link: ");
-        $sb->add_text_option(ImageConfig::TIP, "Image tooltip", true);
-        $sb->add_text_option(ImageConfig::INFO, "Image info", true);
+        $sb->add_text_option(ImageConfig::TIP, "Post tooltip", true);
+        $sb->add_text_option(ImageConfig::INFO, "Post info", true);
         $sb->add_choice_option(ImageConfig::UPLOAD_COLLISION_HANDLER, self::COLLISION_OPTIONS, "Upload collision handler", true);
         $sb->add_choice_option(ImageConfig::ON_DELETE, self::ON_DELETE_OPTIONS, "On Delete", true);
         if (function_exists(self::EXIF_READ_FUNCTION)) {
             $sb->add_bool_option(ImageConfig::SHOW_META, "Show metadata", true);
         }
         $sb->end_table();
-        $event->panel->add_block($sb);
 
-        $sb = new SetupBlock("Thumbnailing");
+        $sb = $event->panel->create_new_block("Thumbnailing");
         $sb->start_table();
         $sb->add_choice_option(ImageConfig::THUMB_ENGINE, self::THUMBNAIL_ENGINES, "Engine", true);
         $sb->add_choice_option(ImageConfig::THUMB_MIME, self::THUMBNAIL_TYPES, "Filetype", true);
@@ -294,14 +295,12 @@ class ImageIO extends Extension
         }
 
         $sb->end_table();
-
-        $event->panel->add_block($sb);
     }
 
     public function onParseLinkTemplate(ParseLinkTemplateEvent $event)
     {
         $fname = $event->image->get_filename();
-        $base_fname = strpos($fname, '.') ? substr($fname, 0, strrpos($fname, '.')) : $fname;
+        $base_fname = str_contains($fname, '.') ? substr($fname, 0, strrpos($fname, '.')) : $fname;
 
         $event->replace('$id', (string)$event->image->id);
         $event->replace('$hash_ab', substr($event->image->hash, 0, 2));
@@ -311,6 +310,7 @@ class ImageIO extends Extension
         $event->replace('$filename', $base_fname);
         $event->replace('$ext', $event->image->get_ext());
         $event->replace('$date', autodate($event->image->posted, false));
+        $event->replace("\\n", "\n");
     }
 
     private function send_file(int $image_id, string $type)
@@ -368,7 +368,7 @@ class ImageIO extends Extension
             $page->set_heading("Not Found");
             $page->add_block(new Block("Navigation", "<a href='" . make_link() . "'>Index</a>", "left", 0));
             $page->add_block(new Block(
-                "Image not in database",
+                "Post not in database",
                 "The requested image was not found in the database"
             ));
         }

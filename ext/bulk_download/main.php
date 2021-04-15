@@ -21,7 +21,7 @@ class BulkDownload extends Extension
 
     public function onBulkActionBlockBuilding(BulkActionBlockBuildingEvent $event)
     {
-        global $user, $config;
+        global $user;
 
         if ($user->can(Permissions::BULK_DOWNLOAD)) {
             $event->add_action(BulkDownload::DOWNLOAD_ACTION_NAME, "Download ZIP");
@@ -30,13 +30,11 @@ class BulkDownload extends Extension
 
     public function onSetupBuilding(SetupBuildingEvent $event)
     {
-        $sb = new SetupBlock("Bulk Download");
+        $sb = $event->panel->create_new_block("Bulk Download");
 
         $sb->start_table();
         $sb->add_shorthand_int_option(BulkDownloadConfig::SIZE_LIMIT, "Size Limit", true);
         $sb->end_table();
-
-        $event->panel->add_block($sb);
     }
 
     public function onBulkAction(BulkActionEvent $event)

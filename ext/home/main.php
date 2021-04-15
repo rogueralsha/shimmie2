@@ -3,7 +3,7 @@
 class Home extends Extension
 {
     /** @var HomeTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     public function onPageRequest(PageRequestEvent $event)
     {
@@ -27,15 +27,14 @@ class Home extends Extension
             $counters[ucfirst($name)] = $name;
         }
 
-        $sb = new SetupBlock("Home Page");
+        $sb = $event->panel->create_new_block("Home Page");
         $sb->add_longtext_option("home_links", 'Page Links (Use BBCode, leave blank for defaults)');
         $sb->add_longtext_option("home_text", "<br>Page Text:<br>");
         $sb->add_choice_option("home_counter", $counters, "<br>Counter: ");
-        $event->panel->add_block($sb);
     }
 
 
-    private function get_body()
+    private function get_body(): string
     {
         // returns just the contents of the body
         global $config;

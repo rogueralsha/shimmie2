@@ -16,11 +16,11 @@ class CustomViewImageTheme extends ViewImageTheme
     public function display_admin_block(Page $page, $parts)
     {
         if (count($parts) > 0) {
-            $page->add_block(new Block("Image Controls", join("<br>", $parts), "drawer", 50));
+            $page->add_block(new Block("Post Controls", join("<br>", $parts), "drawer", 50));
         }
     }
 
-    protected function build_pin(Image $image)
+    protected function build_pin(Image $image): string
     {
         if (isset($_GET['search'])) {
             $query = "search=".url_escape($_GET['search']);
@@ -36,12 +36,12 @@ class CustomViewImageTheme extends ViewImageTheme
     }
 
 
-    protected function build_info(Image $image, $editor_parts)
+    protected function build_info(Image $image, $editor_parts): string
     {
         global $user;
 
         if (count($editor_parts) == 0) {
-            return ($image->is_locked() ? "<br>[Image Locked]" : "");
+            return ($image->is_locked() ? "<br>[Post Locked]" : "");
         }
 
         $html = make_form(make_link("post/set"))."

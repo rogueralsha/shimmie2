@@ -190,8 +190,8 @@ function stream_file(string $file, int $start, int $end): void
     }
 }
 
-if (!function_exists('http_parse_headers')) { #http://www.php.net/manual/en/function.http-parse-headers.php#112917
-
+# http://www.php.net/manual/en/function.http-parse-headers.php#112917
+if (!function_exists('http_parse_headers')) {
     /**
      * #return string[]
      */
@@ -222,7 +222,7 @@ if (!function_exists('http_parse_headers')) { #http://www.php.net/manual/en/func
  * HTTP Headers can sometimes be lowercase which will cause issues.
  * In cases like these, we need to make sure to check for them if the camelcase version does not exist.
  */
-function findHeader(array $headers, string $name): ?string
+function find_header(array $headers, string $name): ?string
 {
     if (!is_array($headers)) {
         return null;
@@ -246,21 +246,22 @@ function findHeader(array $headers, string $name): ?string
 
 if (!function_exists('mb_strlen')) {
     // TODO: we should warn the admin that they are missing multibyte support
-    function mb_strlen($str, $encoding)
+    /** @noinspection PhpUnusedParameterInspection */
+    function mb_strlen($str, $encoding): int
     {
         return strlen($str);
     }
-    function mb_internal_encoding($encoding)
+    function mb_internal_encoding($encoding): void
     {
     }
-    function mb_strtolower($str)
+    function mb_strtolower($str): string
     {
         return strtolower($str);
     }
 }
 
 /** @noinspection PhpUnhandledExceptionInspection */
-function getSubclassesOf(string $parent)
+function get_subclasses_of(string $parent): array
 {
     $result = [];
     foreach (get_declared_classes() as $class) {
@@ -327,7 +328,7 @@ function get_base_href(): string
 /**
  * The opposite of the standard library's parse_url
  */
-function unparse_url($parsed_url)
+function unparse_url(array $parsed_url): string
 {
     $scheme   = isset($parsed_url['scheme']) ? $parsed_url['scheme'] . '://' : '';
     $host     = isset($parsed_url['host']) ? $parsed_url['host'] : '';
@@ -341,17 +342,26 @@ function unparse_url($parsed_url)
     return "$scheme$user$pass$host$port$path$query$fragment";
 }
 
-function startsWith(string $haystack, string $needle): bool
-{
-    $length = strlen($needle);
-    return (substr($haystack, 0, $length) === $needle);
+# finally in the core library starting from php8
+if (!function_exists('str_starts_with')) {
+    function str_starts_with(string $haystack, string $needle): bool
+    {
+        return strncmp($haystack, $needle, strlen($needle)) === 0;
+    }
 }
 
-function endsWith(string $haystack, string $needle): bool
-{
-    $length = strlen($needle);
-    $start  = $length * -1; //negative
-    return (substr($haystack, $start) === $needle);
+if (!function_exists('str_ends_with')) {
+    function str_ends_with(string $haystack, string $needle): bool
+    {
+        return $needle === '' || $needle === substr($haystack, - strlen($needle));
+    }
+}
+
+if (!function_exists('str_contains')) {
+    function str_contains(string $haystack, string $needle): bool
+    {
+        return '' === $needle || false !== strpos($haystack, $needle);
+    }
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *\
@@ -478,25 +488,6 @@ function clamp(?int $val, ?int $min=null, ?int $max=null): int
     return $val;
 }
 
-function xml_tag(string $name, array $attrs=[], array $children=[]): string
-{
-    $xml = "<$name ";
-    foreach ($attrs as $k => $v) {
-        $xv = str_replace('&#039;', '&apos;', htmlspecialchars((string)$v, ENT_QUOTES));
-        $xml .= "$k=\"$xv\" ";
-    }
-    if (count($children) > 0) {
-        $xml .= ">\n";
-        foreach ($children as $child) {
-            $xml .= xml_tag($child);
-        }
-        $xml .= "</$name>\n";
-    } else {
-        $xml .= "/>\n";
-    }
-    return $xml;
-}
-
 /**
  * Original PHP code by Chirp Internet: www.chirp.com.au
  * Please acknowledge use of this code by including this header.
@@ -535,7 +526,6 @@ function parse_shorthand_int(string $limit): int
                 /** @noinspection PhpMissingBreakStatementInspection */
                 // no break
                 case 'm': $value *= 1024;  // fall through
-                /** @noinspection PhpMissingBreakStatementInspection */
                 // no break
                 case 'k': $value *= 1024; break;
                 default: $value = -1;
@@ -566,17 +556,41 @@ function to_shorthand_int(int $int): string
         return (string)$int;
     }
 }
-
-const TIME_UNITS = ["s"=>60,"m"=>60,"h"=>24,"d"=>365,"y"=>PHP_INT_MAX];
-function format_milliseconds(int $input): string
+abstract class TIME_UNITS
+{
+    public const MILLISECONDS = "ms";
+    public const SECONDS = "s";
+    public const MINUTES = "m";
+    public const HOURS = "h";
+    public const DAYS = "d";
+    public const YEARS = "y";
+    public const CONVERSION = [
+        self::MILLISECONDS=>1000,
+        self::SECONDS=>60,
+        self::MINUTES=>60,
+        self::HOURS=>24,
+        self::DAYS=>365,
+        self::YEARS=>PHP_INT_MAX
+    ];
+}
+function format_milliseconds(int $input, string $min_unit = TIME_UNITS::SECONDS): string
 {
     $output = "";
 
-    $remainder = floor($input / 1000);
+    $remainder = $input;
 
-    foreach (TIME_UNITS as $unit=>$conversion) {
+    $found = false;
+
+    foreach (TIME_UNITS::CONVERSION as $unit=>$conversion) {
         $count = $remainder % $conversion;
         $remainder = floor($remainder / $conversion);
+
+        if ($found||$unit==$min_unit) {
+            $found = true;
+        } else {
+            continue;
+        }
+
         if ($count==0&&$remainder<1) {
             break;
         }
@@ -584,6 +598,32 @@ function format_milliseconds(int $input): string
     }
 
     return trim($output);
+}
+function parse_to_milliseconds(string $input): int
+{
+    $output = 0;
+    $current_multiplier = 1;
+
+    if (preg_match('/^([0-9]+)$/i', $input, $match)) {
+        // If just a number, then we treat it as milliseconds
+        $length = $match[0];
+        if (is_numeric($length)) {
+            $length = floatval($length);
+            $output += $length;
+        }
+    } else {
+        foreach (TIME_UNITS::CONVERSION as $unit=>$conversion) {
+            if (preg_match('/([0-9]+)'.$unit.'/i', $input, $match)) {
+                $length = $match[1];
+                if (is_numeric($length)) {
+                    $length = floatval($length);
+                    $output += $length * $current_multiplier;
+                }
+            }
+            $current_multiplier *= $conversion;
+        }
+    }
+    return intval($output);
 }
 
 /**
@@ -760,7 +800,7 @@ function iterator_map_to_array(callable $callback, iterator $iter): array
     return iterator_to_array(iterator_map($callback, $iter));
 }
 
-function stringer($s)
+function stringer($s): string
 {
     if (is_array($s)) {
         if (isset($s[0])) {

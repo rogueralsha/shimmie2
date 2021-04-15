@@ -3,6 +3,7 @@
 require_once "events.php";
 
 use function MicroHTML\A;
+use MicroHTML\HTMLElement;
 use MicroCRUD\ActionColumn;
 use MicroCRUD\EnumColumn;
 use MicroCRUD\IntegerColumn;
@@ -12,7 +13,7 @@ use MicroCRUD\Table;
 
 class UserNameColumn extends TextColumn
 {
-    public function display(array $row)
+    public function display(array $row): HTMLElement
     {
         return A(["href"=>make_link("user/{$row[$this->name]}")], $row[$this->name]);
     }
@@ -22,11 +23,11 @@ class UserActionColumn extends ActionColumn
 {
     public function __construct()
     {
-        parent::__construct("id", "User Links");
+        parent::__construct("id");
         $this->sortable = false;
     }
 
-    public function display(array $row)
+    public function display(array $row): HTMLElement
     {
         return A(["href"=>make_link("post/list/user={$row['name']}/1")], "Posts");
     }
@@ -72,7 +73,7 @@ class NullUserException extends SCoreException
 class UserPage extends Extension
 {
     /** @var UserPageTheme $theme */
-    public $theme;
+    public ?Themelet $theme;
 
     public function onInitExt(InitExtEvent $event)
     {
@@ -231,7 +232,7 @@ class UserPage extends Extension
         }
     }
 
-    private function display_stats(UserPageBuildingEvent $event)
+    private function display_stats(UserPageBuildingEvent $event): void
     {
         global $user, $page, $config;
 
@@ -240,10 +241,11 @@ class UserPage extends Extension
 
         if (!$user->is_anonymous()) {
             if ($user->id == $event->display_user->id || $user->can("edit_user_info")) {
-                $uobe = new UserOptionsBuildingEvent();
-                send_event($uobe);
+                $user_config = UserConfig::get_for_user($event->display_user->id);
 
-                $page->add_block(new Block("Options", $this->theme->build_options($event->display_user, $uobe), "main", 60));
+                $uobe = new UserOperationsBuildingEvent($event->display_user, $user_config);
+                send_event($uobe);
+                $page->add_block(new Block("Operations", $this->theme->build_operations($event->display_user, $uobe), "main", 60));
             }
         }
 
@@ -275,7 +277,7 @@ class UserPage extends Extension
             "Gravatar" => "gravatar"
         ];
 
-        $sb = new SetupBlock("User Options");
+        $sb = $event->panel->create_new_block("User Options");
         $sb->start_table();
         $sb->add_bool_option(UserConfig::ENABLE_API_KEYS, "Enable user API keys", true);
         $sb->add_bool_option("login_signup_enabled", "Allow new signups", true);
@@ -293,7 +295,7 @@ class UserPage extends Extension
         if ($config->get_string("avatar_host") == "gravatar") {
             $sb->start_table_row();
             $sb->start_table_cell(2);
-            $sb->add_label("<div style='text-align: center'><b>Gravatar Options</b></div>", );
+            $sb->add_label("<div style='text-align: center'><b>Gravatar Options</b></div>");
             $sb->end_table_cell();
             $sb->end_table_row();
 
@@ -316,8 +318,6 @@ class UserPage extends Extension
             );
         }
         $sb->end_table();
-
-        $event->panel->add_block($sb);
     }
 
     public function onPageSubNavBuilding(PageSubNavBuildingEvent $event)
@@ -361,8 +361,8 @@ class UserPage extends Extension
         }
     }
 
-    public const USER_SEARCH_REGEX = "/^(?:poster|user)[=|:](.*)$/i";
-    public const USER_ID_SEARCH_REGEX = "/^(?:poster|user)_id[=|:]([0-9]+)$/i";
+    public const USER_SEARCH_REGEX = "/^(?:poster|user)(!?)[=|:](.*)$/i";
+    public const USER_ID_SEARCH_REGEX = "/^(?:poster|user)_id(!?)[=|:]([0-9]+)$/i";
 
     public static function has_user_query(array $context): bool
     {
@@ -385,11 +385,11 @@ class UserPage extends Extension
 
         $matches = [];
         if (preg_match(self::USER_SEARCH_REGEX, $event->term, $matches)) {
-            $user_id = User::name_to_id($matches[1]);
-            $event->add_querylet(new Querylet("images.owner_id = $user_id"));
+            $user_id = User::name_to_id($matches[2]);
+            $event->add_querylet(new Querylet("images.owner_id ${matches[1]}= $user_id"));
         } elseif (preg_match(self::USER_ID_SEARCH_REGEX, $event->term, $matches)) {
-            $user_id = int_escape($matches[1]);
-            $event->add_querylet(new Querylet("images.owner_id = $user_id"));
+            $user_id = int_escape($matches[2]);
+            $event->add_querylet(new Querylet("images.owner_id ${matches[1]}= $user_id"));
         } elseif ($user->can(Permissions::VIEW_IP) && preg_match("/^(?:poster|user)_ip[=|:]([0-9\.]+)$/i", $event->term, $matches)) {
             $user_ip = $matches[1]; // FIXME: ip_escape?
             $event->add_querylet(new Querylet("images.owner_ip = '$user_ip'"));
@@ -401,12 +401,12 @@ class UserPage extends Extension
         if ($event->key===HelpPages::SEARCH) {
             $block = new Block();
             $block->header = "Users";
-            $block->body = $this->theme->get_help_html();
+            $block->body = (string)$this->theme->get_help_html();
             $event->add_block($block);
         }
     }
 
-    private function show_user_info()
+    private function show_user_info(): void
     {
         global $user, $page;
         // user info is shown on all pages
@@ -420,7 +420,7 @@ class UserPage extends Extension
         }
     }
 
-    private function page_login($name, $pass)
+    private function page_login(string $name, string $pass): void
     {
         global $config, $page;
 
@@ -446,7 +446,7 @@ class UserPage extends Extension
         }
     }
 
-    private function page_logout()
+    private function page_logout(): void
     {
         global $page, $config;
         $page->add_cookie("session", "", time() + 60 * 60 * 24 * $config->get_int('login_memory'), "/");
@@ -466,7 +466,7 @@ class UserPage extends Extension
         }
     }
 
-    private function page_recover(string $username)
+    private function page_recover(string $username): void
     {
         $my_user = User::by_name($username);
         if (is_null($my_user)) {
@@ -478,7 +478,7 @@ class UserPage extends Extension
         }
     }
 
-    private function page_create()
+    private function page_create(): void
     {
         global $config, $page, $user;
         if (!$user->can(Permissions::CREATE_USER)) {
@@ -509,7 +509,7 @@ class UserPage extends Extension
         }
     }
 
-    private function check_user_creation(UserCreationEvent $event)
+    private function check_user_creation(UserCreationEvent $event): void
     {
         $name = $event->username;
         //$pass = $event->password;
@@ -537,7 +537,7 @@ class UserPage extends Extension
         $need_admin = ($database->get_one("SELECT COUNT(*) FROM users WHERE class='admin'") == 0);
         $class = $need_admin ? 'admin' : 'user';
 
-        $database->Execute(
+        $database->execute(
             "INSERT INTO users (name, pass, joindate, email, class) VALUES (:username, :hash, now(), :email, :class)",
             ["username"=>$event->username, "hash"=>'', "email"=>$email, "class"=>$class]
         );
@@ -550,7 +550,7 @@ class UserPage extends Extension
         return $user;
     }
 
-    private function set_login_cookie(string $name, string $pass)
+    private function set_login_cookie(string $name, string $pass): void
     {
         global $config, $page;
 
@@ -590,7 +590,7 @@ class UserPage extends Extension
         }
     }
 
-    private function redirect_to_user(User $duser)
+    private function redirect_to_user(User $duser): void
     {
         global $page, $user;
 
@@ -603,7 +603,7 @@ class UserPage extends Extension
         }
     }
 
-    private function change_name_wrapper(User $duser, $name)
+    private function change_name_wrapper(User $duser, string $name): void
     {
         global $page, $user;
 
@@ -617,7 +617,7 @@ class UserPage extends Extension
         }
     }
 
-    private function change_password_wrapper(User $duser, string $pass1, string $pass2)
+    private function change_password_wrapper(User $duser, string $pass1, string $pass2): void
     {
         global $page, $user;
 
@@ -638,7 +638,7 @@ class UserPage extends Extension
         }
     }
 
-    private function change_email_wrapper(User $duser, string $address)
+    private function change_email_wrapper(User $duser, string $address): void
     {
         global $page, $user;
 
@@ -650,7 +650,7 @@ class UserPage extends Extension
         }
     }
 
-    private function change_class_wrapper(User $duser, string $class)
+    private function change_class_wrapper(User $duser, string $class): void
     {
         global $page, $user;
 
@@ -703,7 +703,7 @@ class UserPage extends Extension
 				ORDER BY MAX(date_sent) DESC", ["username"=>$duser->name]);
     }
 
-    private function delete_user(Page $page, bool $with_images=false, bool $with_comments=false)
+    private function delete_user(Page $page, bool $with_images=false, bool $with_comments=false): void
     {
         global $user, $config, $database;
 
@@ -719,10 +719,12 @@ class UserPage extends Extension
                 "You need to specify the account number to edit"
             ));
         } else {
-            log_warning("user", "Deleting user #{$_POST['id']}");
+            $uid = int_escape($_POST['id']);
+            $duser = User::by_id($uid);
+            log_warning("user", "Deleting user #{$uid} (@{$duser->name})");
 
             if ($with_images) {
-                log_warning("user", "Deleting user #{$_POST['id']}'s uploads");
+                log_warning("user", "Deleting user #{$_POST['id']} (@{$duser->name})'s uploads");
                 $rows = $database->get_all("SELECT * FROM images WHERE owner_id = :owner_id", ["owner_id" => $_POST['id']]);
                 foreach ($rows as $key => $value) {
                     $image = Image::by_id($value['id']);
@@ -731,23 +733,23 @@ class UserPage extends Extension
                     }
                 }
             } else {
-                $database->Execute(
+                $database->execute(
                     "UPDATE images SET owner_id = :new_owner_id WHERE owner_id = :old_owner_id",
                     ["new_owner_id" => $config->get_int('anon_id'), "old_owner_id" => $_POST['id']]
                 );
             }
 
             if ($with_comments) {
-                log_warning("user", "Deleting user #{$_POST['id']}'s comments");
+                log_warning("user", "Deleting user #{$_POST['id']} (@{$duser->name})'s comments");
                 $database->execute("DELETE FROM comments WHERE owner_id = :owner_id", ["owner_id" => $_POST['id']]);
             } else {
-                $database->Execute(
+                $database->execute(
                     "UPDATE comments SET owner_id = :new_owner_id WHERE owner_id = :old_owner_id",
                     ["new_owner_id" => $config->get_int('anon_id'), "old_owner_id" => $_POST['id']]
                 );
             }
 
-            send_event(new UserDeletionEvent((int)$_POST['id']));
+            send_event(new UserDeletionEvent($uid));
 
             $database->execute(
                 "DELETE FROM users WHERE id = :id",

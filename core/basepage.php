@@ -20,10 +20,8 @@ abstract class PageMode
  */
 class BasePage
 {
-    /** @var string */
-    public $mode = PageMode::PAGE;
-    /** @var string */
-    private $mime;
+    public string $mode = PageMode::PAGE;
+    private string $mime;
 
     /**
      * Set what this page should do; "page", "data", or "redirect".
@@ -52,19 +50,11 @@ class BasePage
 
     // ==============================================
 
-    /** @var string; public only for unit test */
-    public $data = "";
-
-    /** @var string */
-    private $file = null;
-
-    /** @var bool */
-    private $file_delete = false;
-
-    /** @var string */
-    private $filename = null;
-
-    private $disposition = null;
+    public string $data = "";  // public only for unit test
+    private ?string $file = null;
+    private bool $file_delete = false;
+    private ?string $filename = null;
+    private ?string $disposition = null;
 
     /**
      * Set the raw data to be sent.
@@ -91,8 +81,7 @@ class BasePage
 
     // ==============================================
 
-    /** @var string */
-    public $redirect = "";
+    public string $redirect = "";
 
     /**
      * Set the URL to redirect to (remember to use make_link() if linking
@@ -105,32 +94,25 @@ class BasePage
 
     // ==============================================
 
-    /** @var int */
-    public $code = 200;
-
-    /** @var string */
-    public $title = "";
-
-    /** @var string */
-    public $heading = "";
-
-    /** @var string */
-    public $subheading = "";
+    public int $code = 200;
+    public string $title = "";
+    public string $heading = "";
+    public string $subheading = "";
 
     /** @var string[] */
-    public $html_headers = [];
+    public array $html_headers = [];
 
     /** @var string[] */
-    public $http_headers = [];
+    public array $http_headers = [];
 
     /** @var string[][] */
-    public $cookies = [];
+    public array $cookies = [];
 
     /** @var Block[] */
-    public $blocks = [];
+    public array $blocks = [];
 
     /** @var string[] */
-    public $flash = [];
+    public array $flash = [];
 
     /**
      * Set the HTTP status code
@@ -298,7 +280,7 @@ class BasePage
 
                 if (isset($_SERVER['HTTP_RANGE'])) {
                     list(, $range) = explode('=', $_SERVER['HTTP_RANGE'], 2);
-                    if (strpos($range, ',') !== false) {
+                    if (str_contains($range, ',')) {
                         header('HTTP/1.1 416 Requested Range Not Satisfiable');
                         header("Content-Range: bytes $start-$end/$size");
                         break;
@@ -335,7 +317,7 @@ class BasePage
                 break;
             case PageMode::REDIRECT:
                 if ($this->flash) {
-                    $this->redirect .= (strpos($this->redirect, "?") === false) ? "?" : "&";
+                    $this->redirect .= str_contains($this->redirect, "?") ? "&" : "?";
                     $this->redirect .= "flash=" . url_escape(implode("\n", $this->flash));
                 }
                 header('Location: ' . $this->redirect);
@@ -428,7 +410,7 @@ class BasePage
         $this->add_html_header("<script defer src='$data_href/$js_cache_file' type='text/javascript'></script>", 44);
     }
 
-    protected function get_nav_links()
+    protected function get_nav_links(): array
     {
         $pnbe = send_event(new PageNavBuildingEvent());
 
@@ -560,7 +542,7 @@ EOD;
         $contact = empty($contact_link) ? "" : "<br><a href='$contact_link'>Contact</a>";
 
         return "
-			Images &copy; their respective owners,
+			Media &copy; their respective owners,
 			<a href=\"https://code.shishnet.org/shimmie2/\">Shimmie</a> &copy;
 			<a href=\"https://www.shishnet.org/\">Shish</a> &amp;
 			<a href=\"https://github.com/shish/shimmie2/graphs/contributors\">The Team</a>
@@ -574,7 +556,7 @@ EOD;
 
 class PageNavBuildingEvent extends Event
 {
-    public $links = [];
+    public array $links = [];
 
     public function add_nav_link(string $name, Link $link, string $desc, ?bool $active = null, int $order = 50)
     {
@@ -584,9 +566,9 @@ class PageNavBuildingEvent extends Event
 
 class PageSubNavBuildingEvent extends Event
 {
-    public $parent;
+    public string $parent;
 
-    public $links = [];
+    public array $links = [];
 
     public function __construct(string $parent)
     {
@@ -602,11 +584,11 @@ class PageSubNavBuildingEvent extends Event
 
 class NavLink
 {
-    public $name;
-    public $link;
-    public $description;
-    public $order;
-    public $active = false;
+    public string $name;
+    public Link $link;
+    public string $description;
+    public int $order;
+    public bool $active = false;
 
     public function __construct(String $name, Link $link, String $description, ?bool $active = null, int $order = 50)
     {
@@ -663,7 +645,7 @@ class NavLink
     }
 }
 
-function sort_nav_links(NavLink $a, NavLink $b)
+function sort_nav_links(NavLink $a, NavLink $b): int
 {
     return $a->order - $b->order;
 }

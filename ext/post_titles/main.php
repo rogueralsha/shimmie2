@@ -6,7 +6,7 @@ require_once "events/post_title_set_event.php";
 class PostTitles extends Extension
 {
     /** @var PostTitlesTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     public function get_priority(): int
     {
@@ -26,7 +26,7 @@ class PostTitles extends Extension
         global $database;
 
         if ($this->get_version(PostTitlesConfig::VERSION) < 1) {
-            $database->Execute("ALTER TABLE images ADD COLUMN title varchar(255) NULL");
+            $database->execute("ALTER TABLE images ADD COLUMN title varchar(255) NULL");
             $this->set_version(PostTitlesConfig::VERSION, 1);
         }
     }
@@ -64,13 +64,11 @@ class PostTitles extends Extension
 
     public function onSetupBuilding(SetupBuildingEvent $event)
     {
-        $sb = new SetupBlock("Post Titles");
+        $sb = $event->panel->create_new_block("Post Titles");
         $sb->start_table();
         $sb->add_bool_option(PostTitlesConfig::DEFAULT_TO_FILENAME, "Default to filename", true);
         $sb->add_bool_option(PostTitlesConfig::SHOW_IN_WINDOW_TITLE, "Show in window title", true);
         $sb->end_table();
-
-        $event->panel->add_block($sb);
     }
 
     public function onBulkExport(BulkExportEvent $event)
@@ -87,8 +85,8 @@ class PostTitles extends Extension
     private function set_title(int $image_id, string $title)
     {
         global $database;
-        $database->Execute("UPDATE images SET title=:title WHERE id=:id", ['title'=>$title, 'id'=>$image_id]);
-        log_info("post_titles", "Title for Image #{$image_id} set to: ".$title);
+        $database->execute("UPDATE images SET title=:title WHERE id=:id", ['title'=>$title, 'id'=>$image_id]);
+        log_info("post_titles", "Title for >>{$image_id} set to: ".$title);
     }
 
     public static function get_title(Image $image): string

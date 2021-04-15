@@ -48,7 +48,7 @@ class WikiTheme extends Themelet
         $page->add_block(new Block("Editor", $this->create_edit_html($wiki_page)));
     }
 
-    protected function create_edit_html(WikiPage $page)
+    protected function create_edit_html(WikiPage $page): string
     {
         $h_title = html_escape($page->title);
         $i_revision = $page->revision + 1;
@@ -71,14 +71,13 @@ class WikiTheme extends Themelet
 		";
     }
 
-    protected function create_display_html(WikiPage $page)
+    protected function create_display_html(WikiPage $page): string
     {
         global $user;
 
         $owner = $page->get_owner();
 
-        $tfe = new TextFormattingEvent($page->body);
-        send_event($tfe);
+        $formatted_body = Wiki::format_tag_wiki_page($page);
 
         $edit = "<table><tr>";
         $edit .= Wiki::can_edit($user, $page) ?
@@ -107,7 +106,7 @@ class WikiTheme extends Themelet
 
         return "
 			<div class='wiki-page'>
-			$tfe->formatted
+			$formatted_body
 			<hr>
 			<p class='wiki-footer'>
 				Revision {$page->revision}

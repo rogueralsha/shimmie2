@@ -45,7 +45,7 @@ class PoolsTheme extends Themelet
 					$h
 				</select>
 				<input type='hidden' name='image_id' value='{$image->id}'>
-				<input type='submit' value='Add Image to Pool'>
+				<input type='submit' value='Add Post to Pool'>
 			</form>
 		";
     }
@@ -380,7 +380,7 @@ class PoolsTheme extends Themelet
         $this->display_paginator($page, "pool/updated", null, $pageNumber, $totalPages);
     }
 
-    public function get_bulk_pool_selector(array $pools)
+    public function get_bulk_pool_selector(array $pools): string
     {
         $output = "<select name='bulk_pool_select' required='required'><option></option>";
         foreach ($pools as $pool) {
@@ -389,33 +389,33 @@ class PoolsTheme extends Themelet
         return $output . "</select>";
     }
 
-    public function get_bulk_pool_input(array $search_terms)
+    public function get_bulk_pool_input(array $search_terms): string
     {
         return "<input type='text' name='bulk_pool_new' placeholder='New pool' required='required' value='".(implode(" ", $search_terms))."' />";
     }
 
-    public function get_help_html()
+    public function get_help_html(): string
     {
-        return '<p>Search for images that are in a pool.</p>
+        return '<p>Search for posts that are in a pool.</p>
         <div class="command_example">
         <pre>pool=1</pre>
-        <p>Returns images in pool #1.</p>
+        <p>Returns posts in pool #1.</p>
         </div>
         <div class="command_example">
         <pre>pool=any</pre>
-        <p>Returns images in any pool.</p>
+        <p>Returns posts in any pool.</p>
         </div>
         <div class="command_example">
         <pre>pool=none</pre>
-        <p>Returns images not in any pool.</p>
+        <p>Returns posts not in any pool.</p>
         </div>
         <div class="command_example">
         <pre>pool_by_name=swimming</pre>
-        <p>Returns images in the "swimming" pool.</p>
+        <p>Returns posts in the "swimming" pool.</p>
         </div>
         <div class="command_example">
         <pre>pool_by_name=swimming_pool</pre>
-        <p>Returns images in the "swimming pool" pool. Note that the underscore becomes a space</p>
+        <p>Returns posts in the "swimming pool" pool. Note that the underscore becomes a space</p>
         </div>
         ';
     }

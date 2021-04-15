@@ -43,7 +43,7 @@ class RatingsTheme extends Themelet
         $page->add_block(new Block("Update Ratings", $html));
     }
 
-    public function get_selection_rater_html(array $selected_options, bool $multiple = false, array $available_options = null)
+    public function get_selection_rater_html(array $selected_options, bool $multiple = false, array $available_options = null): string
     {
         $output = "<select name='rating".($multiple ? "[]' multiple='multiple'" : "' ")." >";
 
@@ -61,22 +61,22 @@ class RatingsTheme extends Themelet
         return $output."</select>";
     }
 
-    public function get_help_html(array $ratings)
+    public function get_help_html(array $ratings): string
     {
-        $output =  '<p>Search for images with one or more possible ratings.</p>
+        $output =  '<p>Search for posts with one or more possible ratings.</p>
         <div class="command_example">
         <pre>rating:'.$ratings[0]->search_term.'</pre>
-        <p>Returns images with the '.$ratings[0]->name.' rating.</p>
+        <p>Returns posts with the '.$ratings[0]->name.' rating.</p>
         </div>
         <p>Ratings can be abbreviated to a single letter as well</p>
         <div class="command_example">
         <pre>rating:'.$ratings[0]->code.'</pre>
-        <p>Returns images with the '.$ratings[0]->name.' rating.</p>
+        <p>Returns posts with the '.$ratings[0]->name.' rating.</p>
         </div>
         <p>If abbreviations are used, multiple ratings can be searched for.</p>
         <div class="command_example">
         <pre>rating:'.$ratings[0]->code.$ratings[1]->code.'</pre>
-        <p>Returns images with the '.$ratings[0]->name.' or '.$ratings[1]->name.' rating.</p>
+        <p>Returns posts with the '.$ratings[0]->name.' or '.$ratings[1]->name.' rating.</p>
         </div>
         <p>Available ratings:</p>
         <table>
@@ -96,7 +96,7 @@ class RatingsTheme extends Themelet
                     <input type='hidden' name='id' value='$user->id'>
                     <table style='width: 300px;'>
                         <thead>
-                            <tr><th colspan='2'>Default Rating Filter</th></tr>
+                            <tr><th colspan='2'></th></tr>
                         </thead>
                         <tbody>
                         <tr><td>This controls the default rating search results will be filtered by, and nothing else. To override in your search results, add rating:* to your search.</td></tr>

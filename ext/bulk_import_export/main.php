@@ -5,7 +5,7 @@ class BulkImportExport extends DataHandlerExtension
 {
     const EXPORT_ACTION_NAME = "bulk_export";
     const EXPORT_INFO_FILE_NAME = "export.json";
-    protected $SUPPORTED_MIME = [MimeType::ZIP];
+    protected array $SUPPORTED_MIME = [MimeType::ZIP];
 
 
     public function onDataUpload(DataUploadEvent $event)
@@ -36,7 +36,7 @@ class BulkImportExport extends DataHandlerExtension
                         $image = Image::by_hash($item->hash);
                         if ($image!=null) {
                             $skipped++;
-                            log_info(BulkImportExportInfo::KEY, "Image $item->hash already present, skipping");
+                            log_info(BulkImportExportInfo::KEY, "Post $item->hash already present, skipping");
                             $database->commit();
                             continue;
                         }
@@ -100,7 +100,7 @@ class BulkImportExport extends DataHandlerExtension
 
     public function onBulkActionBlockBuilding(BulkActionBlockBuildingEvent $event)
     {
-        global $user, $config;
+        global $user;
 
         if ($user->can(Permissions::BULK_EXPORT)) {
             $event->add_action(self::EXPORT_ACTION_NAME, "Export");
@@ -159,7 +159,7 @@ class BulkImportExport extends DataHandlerExtension
         return false;
     }
 
-    protected function create_thumb(string $hash, string $type): bool
+    protected function create_thumb(string $hash, string $mime): bool
     {
         return false;
     }
@@ -167,7 +167,6 @@ class BulkImportExport extends DataHandlerExtension
     private function get_export_data(ZipArchive $zip): ?array
     {
         $info = $zip->getStream(self::EXPORT_INFO_FILE_NAME);
-        $json_data = [];
         if ($info !== false) {
             try {
                 $json_string = stream_get_contents($info);

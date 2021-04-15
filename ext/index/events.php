@@ -6,28 +6,20 @@
  */
 class SearchTermParseEvent extends Event
 {
-    /** @var null|string  */
-    public $term = null;
+    public int $id = 0;
+    public ?string $term = null;
     /** @var string[] */
-    public $context = [];
+    public array $context = [];
     /** @var Querylet[] */
-    public $querylets = [];
+    public array $querylets = [];
+    public ?string $order = null;
 
-    public function __construct(string $term=null, array $context=[])
+    public function __construct(int $id, string $term=null, array $context=[])
     {
         parent::__construct();
+        $this->id = $id;
         $this->term = $term;
         $this->context = $context;
-    }
-
-    public function is_querylet_set(): bool
-    {
-        return (count($this->querylets) > 0);
-    }
-
-    public function get_querylets(): array
-    {
-        return $this->querylets;
     }
 
     public function add_querylet(Querylet $q)
@@ -42,11 +34,8 @@ class SearchTermParseException extends SCoreException
 
 class PostListBuildingEvent extends Event
 {
-    /** @var array */
-    public $search_terms = [];
-
-    /** @var array */
-    public $parts = [];
+    public array $search_terms = [];
+    public array $parts = [];
 
     /**
      * #param string[] $search

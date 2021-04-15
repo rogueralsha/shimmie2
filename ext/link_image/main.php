@@ -3,7 +3,7 @@
 class LinkImage extends Extension
 {
     /** @var LinkImageTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     public function onDisplayingImage(DisplayingImageEvent $event)
     {
@@ -13,9 +13,8 @@ class LinkImage extends Extension
 
     public function onSetupBuilding(SetupBuildingEvent $event)
     {
-        $sb = new SetupBlock("Link to Image");
+        $sb = $event->panel->create_new_block("Link to Post");
         $sb->add_text_option("ext_link-img_text-link_format", "Text Link Format: ");
-        $event->panel->add_block($sb);
     }
 
     public function onInitExt(InitExtEvent $event)
@@ -24,7 +23,7 @@ class LinkImage extends Extension
         $config->set_default_string("ext_link-img_text-link_format", '$title - $id ($ext $size $filesize)');
     }
 
-    private function data(Image $image)
+    private function data(Image $image): array
     {
         global $config;
 

@@ -8,7 +8,7 @@ class SetupTheme extends Themelet
      * $panel = the container of the blocks
      * $panel->blocks the blocks to be displayed, unsorted
      *
-     * It's recommented that the theme sort the blocks before doing anything
+     * It's recommended that the theme sort the blocks before doing anything
      * else, using:  usort($panel->blocks, "blockcmp");
      *
      * The page should wrap all the options in a form which links to setup_save
@@ -52,7 +52,7 @@ class SetupTheme extends Themelet
             $h_value = html_escape((string)$value);
 
             $h_box = "";
-            if (is_string($value) && strpos($value, "\n") > 0) {
+            if (is_string($value) && str_contains($value, "\n")) {
                 $h_box .= "<textarea cols='50' rows='4' name='_config_$h_name'>$h_value</textarea>";
             } else {
                 $h_box .= "<input type='text' name='_config_$h_name' value='$h_value'>";
@@ -77,7 +77,7 @@ class SetupTheme extends Themelet
         $page->add_block(new Block("Setup", $table));
     }
 
-    protected function build_navigation()
+    protected function build_navigation(): string
     {
         return "
 			<a href='".make_link()."'>Index</a>
@@ -86,7 +86,7 @@ class SetupTheme extends Themelet
 		";
     }
 
-    protected function sb_to_html(SetupBlock $block)
+    protected function sb_to_html(SetupBlock $block): string
     {
         $h = $block->header;
         $b = $block->body;

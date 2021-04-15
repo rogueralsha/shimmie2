@@ -3,7 +3,7 @@
 class SourceHistory extends Extension
 {
     /** @var SourceHistoryTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     // in before source are actually set, so that "get current source" works
     public function get_priority(): int
@@ -61,12 +61,11 @@ class SourceHistory extends Extension
     // so let's default to -1 and the user can go advanced if
     // they /really/ want to
     public function onSetupBuilding(SetupBuildingEvent $event) {
-        $sb = new SetupBlock("Source History");
+        $sb = $event->panel->create_new_block("Source History");
         $sb->add_label("Limit to ");
         $sb->add_int_option("history_limit");
         $sb->add_label(" entires per image");
         $sb->add_label("<br>(-1 for unlimited)");
-        $event->panel->add_block($sb);
     }
     */
 
@@ -113,13 +112,13 @@ class SourceHistory extends Extension
         }
 
         if ($this->get_version("ext_source_history_version") == 1) {
-            $database->Execute("ALTER TABLE source_histories ADD COLUMN user_id INTEGER NOT NULL");
-            $database->Execute("ALTER TABLE source_histories ADD COLUMN date_set DATETIME NOT NULL");
+            $database->execute("ALTER TABLE source_histories ADD COLUMN user_id INTEGER NOT NULL");
+            $database->execute("ALTER TABLE source_histories ADD COLUMN date_set DATETIME NOT NULL");
             $this->set_version("ext_source_history_version", 2);
         }
 
         if ($this->get_version("ext_source_history_version") == 2) {
-            $database->Execute("ALTER TABLE source_histories ADD COLUMN user_ip CHAR(15) NOT NULL");
+            $database->execute("ALTER TABLE source_histories ADD COLUMN user_ip CHAR(15) NOT NULL");
             $this->set_version("ext_source_history_version", 3);
         }
     }
@@ -154,7 +153,7 @@ class SourceHistory extends Extension
         $stored_image_id = (int)$result['image_id'];
         $stored_source = $result['source'];
 
-        log_debug("source_history", 'Reverting source of Image #'.$stored_image_id.' to ['.$stored_source.']');
+        log_debug("source_history", 'Reverting source of >>'.$stored_image_id.' to ['.$stored_source.']');
 
         $image = Image::by_id($stored_image_id);
 
@@ -321,7 +320,7 @@ class SourceHistory extends Extension
                 $stored_image_id = $result['image_id'];
                 $stored_source = $result['source'];
 
-                log_debug("source_history", 'Reverting source of Image #'.$stored_image_id.' to ['.$stored_source.']');
+                log_debug("source_history", 'Reverting source of >>'.$stored_image_id.' to ['.$stored_source.']');
 
                 $image = Image::by_id($stored_image_id);
 
@@ -331,7 +330,7 @@ class SourceHistory extends Extension
 
                 // all should be ok so we can revert by firing the SetSources event.
                 send_event(new SourceSetEvent($image, $stored_source));
-                $this->theme->add_status('Reverted Change', 'Reverted Image #'.$image_id.' to Source History #'.$stored_result_id.' ('.$row['source'].')');
+                $this->theme->add_status('Reverted Change', 'Reverted >>'.$image_id.' to Source History #'.$stored_result_id.' ('.$row['source'].')');
             }
         }
 

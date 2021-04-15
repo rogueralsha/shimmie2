@@ -2,12 +2,9 @@
 
 class TagListTheme extends Themelet
 {
-    /** @var string  */
-    public $heading = "";
-    /** @var string  */
-    public $list = "";
-
-    public $navigation;
+    public string $heading = "";
+    public string $list = "";
+    public ?string $navigation;
 
     public function set_heading(string $text)
     {
@@ -34,7 +31,7 @@ class TagListTheme extends Themelet
 
     // =======================================================================
 
-    protected function get_tag_list_preamble()
+    protected function get_tag_list_preamble(): string
     {
         global $config;
 
@@ -118,11 +115,7 @@ class TagListTheme extends Themelet
         }
 
         if ($main_html != null) {
-            if ($config->get_string(TagListConfig::IMAGE_TYPE)==TagListConfig::TYPE_TAGS) {
-                $page->add_block(new Block("Tags", $main_html, "left", 10));
-            } else {
-                $page->add_block(new Block("Related Tags", $main_html, "left", 10));
-            }
+            $page->add_block(new Block("Tags", $main_html, "left", 10));
         }
     }
 
@@ -132,7 +125,7 @@ class TagListTheme extends Themelet
      *                 ...
      *              )
      */
-    private function get_tag_list_html($tag_infos, $sort)
+    private function get_tag_list_html(array $tag_infos, string $sort): string
     {
         if ($sort == TagListConfig::SORT_ALPHABETICAL) {
             asort($tag_infos);
@@ -164,7 +157,7 @@ class TagListTheme extends Themelet
      *                 ...
      *              )
      */
-    public function display_related_block(Page $page, $tag_infos)
+    public function display_related_block(Page $page, $tag_infos, $block_name)
     {
         global $config;
 
@@ -173,11 +166,7 @@ class TagListTheme extends Themelet
             $config->get_string(TagListConfig::RELATED_SORT)
         );
 
-        if ($config->get_string(TagListConfig::IMAGE_TYPE)==TagListConfig::TYPE_TAGS) {
-            $page->add_block(new Block("Tags", $main_html, "left", 10));
-        } else {
-            $page->add_block(new Block("Related Tags", $main_html, "left", 10));
-        }
+        $page->add_block(new Block($block_name, $main_html, "left", 10));
     }
 
 
@@ -220,7 +209,7 @@ class TagListTheme extends Themelet
         $page->add_block(new Block("refine Search", $main_html, "left", 60));
     }
 
-    public function return_tag($row, $tag_category_dict)
+    public function return_tag(array $row, array $tag_category_dict): array
     {
         global $config;
 

@@ -20,7 +20,7 @@ class VideoFileHandler extends DataHandlerExtension
         MimeType::QUICKTIME,
         MimeType::WEBM,
     ];
-    protected $SUPPORTED_MIME = self::SUPPORTED_MIME;
+    protected array $SUPPORTED_MIME = self::SUPPORTED_MIME;
 
     public function onInitExt(InitExtEvent $event)
     {
@@ -46,14 +46,13 @@ class VideoFileHandler extends DataHandlerExtension
 
     public function onSetupBuilding(SetupBuildingEvent $event)
     {
-        $sb = new SetupBlock("Video Options");
+        $sb = $event->panel->create_new_block("Video Options");
         $sb->start_table();
         $sb->add_bool_option(VideoFileHandlerConfig::PLAYBACK_AUTOPLAY, "Autoplay", true);
         $sb->add_bool_option(VideoFileHandlerConfig::PLAYBACK_LOOP, "Loop", true);
         $sb->add_bool_option(VideoFileHandlerConfig::PLAYBACK_MUTE, "Mute", true);
         $sb->add_multichoice_option(VideoFileHandlerConfig::ENABLED_FORMATS, $this->get_options(), "Enabled Formats", true);
         $sb->end_table();
-        $event->panel->add_block($sb);
     }
 
     protected function media_check_properties(MediaCheckPropertiesEvent $event): void
@@ -66,7 +65,7 @@ class VideoFileHandler extends DataHandlerExtension
             if (is_array($data)) {
                 if (array_key_exists("streams", $data)) {
                     $video = false;
-                    $audio = true;
+                    $audio = false;
                     $video_codec = null;
                     $streams = $data["streams"];
                     if (is_array($streams)) {
@@ -108,7 +107,7 @@ class VideoFileHandler extends DataHandlerExtension
                 if (array_key_exists("format", $data)&& is_array($data["format"])) {
                     $format = $data["format"];
                     if (array_key_exists("duration", $format) && is_numeric($format["duration"])) {
-                        $event->image->length = floor(floatval($format["duration"]) * 1000);
+                        $event->image->length = (int)floor(floatval($format["duration"]) * 1000);
                     }
                 }
             }
@@ -126,7 +125,7 @@ class VideoFileHandler extends DataHandlerExtension
         return MimeType::matches_array($mime, $enabled_formats, true);
     }
 
-    protected function create_thumb(string $hash, string $type): bool
+    protected function create_thumb(string $hash, string $mime): bool
     {
         return Media::create_thumbnail_ffmpeg($hash);
     }

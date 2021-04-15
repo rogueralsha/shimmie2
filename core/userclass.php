@@ -10,21 +10,9 @@ $_shm_user_classes = [];
  */
 class UserClass
 {
-
-    /**
-     * @var ?string
-     */
-    public $name = null;
-
-    /**
-     * @var ?UserClass
-     */
-    public $parent = null;
-
-    /**
-     * @var array
-     */
-    public $abilities = [];
+    public ?string $name = null;
+    public ?UserClass $parent = null;
+    public array $abilities = [];
 
     public function __construct(string $name, string $parent = null, array $abilities = [])
     {
@@ -100,6 +88,7 @@ new UserClass("user", "base", [
     Permissions::READ_PM => true,
     Permissions::SET_PRIVATE_IMAGE => true,
     Permissions::BULK_DOWNLOAD => true,
+    Permissions::CHANGE_USER_SETTING => true
 ]);
 
 new UserClass("hellbanned", "user", [
@@ -108,6 +97,8 @@ new UserClass("hellbanned", "user", [
 
 new UserClass("admin", "base", [
     Permissions::CHANGE_SETTING => true,
+    Permissions::CHANGE_USER_SETTING => true,
+    Permissions::CHANGE_OTHER_USER_SETTING => true,
     Permissions::OVERRIDE_CONFIG => true,
     Permissions::BIG_SEARCH => true,
 
@@ -199,6 +190,8 @@ new UserClass("admin", "base", [
 
     Permissions::APPROVE_IMAGE => true,
     Permissions::APPROVE_COMMENT => true,
+
+    Permissions::CRON_RUN =>true,
 
     Permissions::BULK_IMPORT =>true,
     Permissions::BULK_EXPORT =>true,

@@ -10,7 +10,7 @@ abstract class ApprovalConfig
 class Approval extends Extension
 {
     /** @var ApprovalTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     public function onInitExt(InitExtEvent $event)
     {
@@ -33,7 +33,7 @@ class Approval extends Extension
                 $image_id = isset($_POST['image_id']) ? $_POST['image_id'] : null;
             }
             if (empty($image_id)) {
-                throw new SCoreException("Can not approve image: No valid Image ID given.");
+                throw new SCoreException("Can not approve post: No valid Post ID given.");
             }
 
             self::approve_image($image_id);
@@ -48,7 +48,7 @@ class Approval extends Extension
                 $image_id = isset($_POST['image_id']) ? $_POST['image_id'] : null;
             }
             if (empty($image_id)) {
-                throw new SCoreException("Can not disapprove image: No valid Image ID given.");
+                throw new SCoreException("Can not disapprove image: No valid Post ID given.");
             }
 
             self::disapprove_image($image_id);
@@ -121,13 +121,13 @@ class Approval extends Extension
     const SEARCH_REGEXP = "/^approved:(yes|no)/";
     public function onSearchTermParse(SearchTermParseEvent $event)
     {
-        global $user, $database, $config;
+        global $user, $config;
 
         if ($config->get_bool(ApprovalConfig::IMAGES)) {
             $matches = [];
 
             if (is_null($event->term) && $this->no_approval_query($event->context)) {
-                $event->add_querylet(new Querylet($database->scoreql_to_sql("approved = SCORE_BOOL_Y ")));
+                $event->add_querylet(new Querylet("approved = :true", ["true"=>true]));
             }
 
             if (is_null($event->term)) {
@@ -135,9 +135,9 @@ class Approval extends Extension
             }
             if (preg_match(self::SEARCH_REGEXP, strtolower($event->term), $matches)) {
                 if ($user->can(Permissions::APPROVE_IMAGE) && $matches[1] == "no") {
-                    $event->add_querylet(new Querylet($database->scoreql_to_sql("approved = SCORE_BOOL_N ")));
+                    $event->add_querylet(new Querylet("approved != :true", ["true"=>true]));
                 } else {
-                    $event->add_querylet(new Querylet($database->scoreql_to_sql("approved = SCORE_BOOL_Y ")));
+                    $event->add_querylet(new Querylet("approved = :true", ["true"=>true]));
                 }
             }
         }
@@ -261,15 +261,15 @@ class Approval extends Extension
         global $database;
 
         if ($this->get_version(ApprovalConfig::VERSION) < 1) {
-            $database->execute($database->scoreql_to_sql(
-                "ALTER TABLE images ADD COLUMN approved SCORE_BOOL NOT NULL DEFAULT SCORE_BOOL_N"
-            ));
-            $database->execute(
-                "ALTER TABLE images ADD COLUMN approved_by_id INTEGER NULL"
-            );
-
+            $database->execute("ALTER TABLE images ADD COLUMN approved BOOLEAN NOT NULL DEFAULT FALSE");
+            $database->execute("ALTER TABLE images ADD COLUMN approved_by_id INTEGER NULL");
             $database->execute("CREATE INDEX images_approved_idx ON images(approved)");
-            $this->set_version(ApprovalConfig::VERSION, 1);
+            $this->set_version(ApprovalConfig::VERSION, 2);
+        }
+
+        if ($this->get_version(ApprovalConfig::VERSION) < 2) {
+            $database->standardise_boolean("images", "approved");
+            $this->set_version(ApprovalConfig::VERSION, 2);
         }
     }
 }

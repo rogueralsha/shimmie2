@@ -12,7 +12,7 @@ class VideoTranscodeException extends SCoreException
 class TranscodeVideo extends Extension
 {
     /** @var TranscodeVideoTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     const ACTION_BULK_TRANSCODE = "bulk_transcode_video";
 
@@ -42,7 +42,7 @@ class TranscodeVideo extends Extension
 
     public function onImageAdminBlockBuilding(ImageAdminBlockBuildingEvent $event)
     {
-        global $user, $config;
+        global $user;
 
         if ($event->image->video===true && $user->can(Permissions::EDIT_FILES)) {
             $options = self::get_output_options($event->image->get_mime(), $event->image->video_codec);
@@ -54,14 +54,11 @@ class TranscodeVideo extends Extension
 
     public function onSetupBuilding(SetupBuildingEvent $event)
     {
-        global $config;
-
-        $sb = new SetupBlock("Video Transcode");
+        $sb = $event->panel->create_new_block("Video Transcode");
         $sb->start_table();
         $sb->add_bool_option(TranscodeVideoConfig::ENABLED, "Allow transcoding images: ", true);
         $sb->add_bool_option(TranscodeVideoConfig::UPLOAD_TO_NATIVE_CONTAINER, "Convert videos using MPEG-4 or WEBM to their native containers:", true);
         $sb->end_table();
-        $event->panel->add_block($sb);
     }
 
     public function onDataUpload(DataUploadEvent $event)
@@ -111,7 +108,7 @@ class TranscodeVideo extends Extension
             }
             $image_obj = Image::by_id($image_id);
             if (is_null($image_obj)) {
-                $this->theme->display_error(404, "Image not found", "No image in the database has the ID #$image_id");
+                $this->theme->display_error(404, "Post not found", "No post in the database has the ID #$image_id");
             } else {
                 if (isset($_POST['transcode_format'])) {
                     try {
@@ -126,10 +123,9 @@ class TranscodeVideo extends Extension
         }
     }
 
-
     public function onBulkActionBlockBuilding(BulkActionBlockBuildingEvent $event)
     {
-        global $user, $config;
+        global $user;
 
         if ($user->can(Permissions::EDIT_FILES)) {
             $event->add_action(
@@ -231,7 +227,7 @@ class TranscodeVideo extends Extension
             /* Move the new image into the main storage location */
             $target = warehouse_path(Image::IMAGE_DIR, $new_image->hash);
             if (!@copy($tmp_filename, $target)) {
-                throw new VideoTranscodeException("Failed to copy new image file from temporary location ({$tmp_filename}) to archive ($target)");
+                throw new VideoTranscodeException("Failed to copy new post file from temporary location ({$tmp_filename}) to archive ($target)");
             }
 
             send_event(new ImageReplaceEvent($image->id, $new_image));
@@ -258,8 +254,6 @@ class TranscodeVideo extends Extension
             throw new VideoTranscodeException("ffmpeg path not configured");
         }
 
-        $ext = Media::determine_ext($target_mime);
-
         $command = new CommandBuilder($ffmpeg);
         $command->add_flag("-y"); // Bypass y/n prompts
         $command->add_flag("-i");
@@ -275,8 +269,6 @@ class TranscodeVideo extends Extension
 
         $command->add_flag("-map"); // Copies all streams
         $command->add_flag("0");
-
-        $file_extension = FileExtension::get_for_mime($target_mime);
 
         $command->add_flag("-f");
         $format = self::FORMAT_NAMES[$target_mime];

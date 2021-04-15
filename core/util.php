@@ -12,6 +12,7 @@ use function MicroHTML\TFOOT;
 use function MicroHTML\TR;
 use function MicroHTML\TH;
 use function MicroHTML\TD;
+use MicroHTML\HTMLElement;
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *\
 * Misc                                                                      *
@@ -19,13 +20,6 @@ use function MicroHTML\TD;
 
 const DATA_DIR = "data";
 
-
-function mtimefile(string $file): string
-{
-    $data_href = get_base_href();
-    $mtime = filemtime($file);
-    return "$data_href/$file?$mtime";
-}
 
 function get_theme(): string
 {
@@ -46,18 +40,18 @@ function contact_link(): ?string
     }
 
     if (
-        startsWith($text, "http:") ||
-        startsWith($text, "https:") ||
-        startsWith($text, "mailto:")
+        str_starts_with($text, "http:") ||
+        str_starts_with($text, "https:") ||
+        str_starts_with($text, "mailto:")
     ) {
         return $text;
     }
 
-    if (strpos($text, "@")) {
+    if (str_contains($text, "@")) {
         return "mailto:$text";
     }
 
-    if (strpos($text, "/")) {
+    if (str_contains($text, "/")) {
         return "http://$text";
     }
 
@@ -259,7 +253,7 @@ function load_balance_url(string $tmpl, string $hash, int $n=0): string
     return $tmpl;
 }
 
-function transload(string $url, string $mfile): ?array
+function fetch_url(string $url, string $mfile): ?array
 {
     global $config;
 
@@ -276,8 +270,7 @@ function transload(string $url, string $mfile): ?array
 
         $response = curl_exec($ch);
         if ($response === false) {
-            log_warning("core-util", "Failed to transload $url");
-            throw new SCoreException("Failed to fetch $url");
+            return null;
         }
 
         $header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
@@ -348,7 +341,7 @@ function path_to_tags(string $path): string
                 // which is for inheriting to tags on the subfolder
                 $category_to_inherit = $tag;
             } else {
-                if ($category!=""&&strpos($tag, ":") === false) {
+                if ($category!="" && !str_contains($tag, ":")) {
                     // This indicates that category inheritance is active,
                     // and we've encountered a tag that does not specify a category.
                     // So we attach the inherited category to the tag.
@@ -367,7 +360,7 @@ function path_to_tags(string $path): string
 }
 
 
-function join_url(string $base, string ...$paths)
+function join_url(string $base, string ...$paths): string
 {
     $output = $base;
     foreach ($paths as $path) {
@@ -418,7 +411,7 @@ function remove_empty_dirs(string $dir): bool
         }
     }
     if ($result===true) {
-        $result = $result && rmdir($dir);
+        $result = rmdir($dir);
     }
     return $result;
 }
@@ -592,7 +585,6 @@ function _get_themelet_files(string $_theme): array
 
 /**
  * Used to display fatal errors to the web user.
- * @noinspection PhpPossiblePolymorphicInvocationInspection
  */
 function _fatal_error(Exception $e): void
 {
@@ -711,7 +703,7 @@ function make_form(string $target, string $method="POST", bool $multipart=false,
     return '<form action="'.$target.'" method="'.$method.'" '.$extra.'>'.$extra_inputs;
 }
 
-function SHM_FORM(string $target, string $method="POST", bool $multipart=false, string $form_id="", string $onsubmit="")
+function SHM_FORM(string $target, string $method="POST", bool $multipart=false, string $form_id="", string $onsubmit=""): HTMLElement
 {
     global $user;
 
@@ -736,19 +728,19 @@ function SHM_FORM(string $target, string $method="POST", bool $multipart=false, 
     );
 }
 
-function SHM_SIMPLE_FORM($target, ...$children)
+function SHM_SIMPLE_FORM($target, ...$children): HTMLElement
 {
     $form = SHM_FORM($target);
     $form->appendChild(emptyHTML(...$children));
     return $form;
 }
 
-function SHM_SUBMIT(string $text)
+function SHM_SUBMIT(string $text): HTMLElement
 {
     return INPUT(["type"=>"submit", "value"=>$text]);
 }
 
-function SHM_COMMAND_EXAMPLE(string $ex, string $desc)
+function SHM_COMMAND_EXAMPLE(string $ex, string $desc): HTMLElement
 {
     return DIV(
         ["class"=>"command_example"],
@@ -757,7 +749,7 @@ function SHM_COMMAND_EXAMPLE(string $ex, string $desc)
     );
 }
 
-function SHM_USER_FORM(User $duser, string $target, string $title, $body, $foot)
+function SHM_USER_FORM(User $duser, string $target, string $title, $body, $foot): HTMLElement
 {
     if (is_string($foot)) {
         $foot = TFOOT(TR(TD(["colspan"=>"2"], INPUT(["type"=>"submit", "value"=>$foot]))));
@@ -777,16 +769,16 @@ function SHM_USER_FORM(User $duser, string $target, string $title, $body, $foot)
 }
 
 const BYTE_DENOMINATIONS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-function human_filesize(int $bytes, $decimals = 2)
+function human_filesize(int $bytes, $decimals = 2): string
 {
     $factor = floor((strlen(strval($bytes)) - 1) / 3);
     return sprintf("%.{$decimals}f", $bytes / pow(1024, $factor)) . @BYTE_DENOMINATIONS[$factor];
 }
 
-/*
+/**
  * Generates a unique key for the website to prevent unauthorized access.
  */
-function generate_key(int $length = 20)
+function generate_key(int $length = 20): string
 {
     $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
     $randomString = '';

@@ -4,6 +4,7 @@
 \* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 require_once "core/sanitize_php.php";
+require_once "core/polyfills.php";
 
 if (!file_exists("vendor/")) {
     $cwd = getcwd();
@@ -33,7 +34,6 @@ require_once "vendor/autoload.php";
 @include_once "data/config/shimmie.conf.php";
 @include_once "data/config/extensions.conf.php";
 require_once "core/sys_config.php";
-require_once "core/polyfills.php";
 require_once "core/util.php";
 
 global $cache, $config, $database, $user, $page, $_tracer;
@@ -83,7 +83,7 @@ try {
         $page->display();
     }
 
-    if ($database->transaction===true) {
+    if ($database->is_transaction_open()) {
         $database->commit();
     }
 
@@ -92,7 +92,7 @@ try {
         fastcgi_finish_request();
     }
 } catch (Exception $e) {
-    if ($database && $database->transaction===true) {
+    if ($database && $database->is_transaction_open()) {
         $database->rollback();
     }
     _fatal_error($e);
@@ -101,6 +101,7 @@ try {
     if (TRACE_FILE) {
         if (
             empty($_SERVER["REQUEST_URI"])
+            || (@$_GET["trace"] == "on")
             || (
                 (microtime(true) - $_shm_load_start) > TRACE_THRESHOLD
                 && ($_SERVER["REQUEST_URI"] ?? "") != "/upload"

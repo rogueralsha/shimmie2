@@ -5,10 +5,8 @@ class BulkActionException extends SCoreException
 }
 class BulkActionBlockBuildingEvent extends Event
 {
-    /** @var array  */
-    public $actions = [];
-
-    public $search_terms = [];
+    public array $actions = [];
+    public array $search_terms = [];
 
     public function add_action(String $action, string $button_text, string $access_key = null, String $confirmation_message = "", String $block = "", int $position = 40)
     {
@@ -38,12 +36,9 @@ class BulkActionBlockBuildingEvent extends Event
 
 class BulkActionEvent extends Event
 {
-    /** @var string  */
-    public $action;
-    /** @var array  */
-    public $items;
-    /** @var bool  */
-    public $redirect = true;
+    public string $action;
+    public Generator $items;
+    public bool $redirect = true;
 
     public function __construct(String $action, Generator $items)
     {
@@ -56,7 +51,7 @@ class BulkActionEvent extends Event
 class BulkActions extends Extension
 {
     /** @var BulkActionsTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     public function onPostListBuilding(PostListBuildingEvent $event)
     {
@@ -127,8 +122,8 @@ class BulkActions extends Extension
         switch ($event->action) {
             case "bulk_delete":
                 if ($user->can(Permissions::DELETE_IMAGE)) {
-                    $i = $this->delete_items($event->items);
-                    $page->flash("Deleted $i items");
+                    $i = $this->delete_posts($event->items);
+                    $page->flash("Deleted $i[0] items, totaling ".human_filesize($i[1]));
                 }
                 break;
             case "bulk_tag":
@@ -193,13 +188,13 @@ class BulkActions extends Extension
                 if (is_iterable($items)) {
                     send_event($bae);
                 }
+
+                if ($bae->redirect) {
+                    $page->set_mode(PageMode::REDIRECT);
+                    $page->set_redirect(referer_or(make_link()));
+                }
             } catch (BulkActionException $e) {
                 log_error(BulkActionsInfo::KEY, $e->getMessage(), $e->getMessage());
-            }
-
-            if ($bae->redirect) {
-                $page->set_mode(PageMode::REDIRECT);
-                $page->set_redirect(referer_or(make_link()));
             }
         }
     }
@@ -227,25 +222,27 @@ class BulkActions extends Extension
         return $a["position"] - $b["position"];
     }
 
-    private function delete_items(iterable $items): int
+    private function delete_posts(iterable $posts): array
     {
         global $page;
         $total = 0;
-        foreach ($items as $image) {
+        $size = 0;
+        foreach ($posts as $post) {
             try {
                 if (class_exists("ImageBan") && isset($_POST['bulk_ban_reason'])) {
                     $reason = $_POST['bulk_ban_reason'];
                     if ($reason) {
-                        send_event(new AddImageHashBanEvent($image->hash, $reason));
+                        send_event(new AddImageHashBanEvent($post->hash, $reason));
                     }
                 }
-                send_event(new ImageDeletionEvent($image));
+                send_event(new ImageDeletionEvent($post));
                 $total++;
+                $size += $post->filesize;
             } catch (Exception $e) {
-                $page->flash("Error while removing {$image->id}: " . $e->getMessage());
+                $page->flash("Error while removing {$post->id}: " . $e->getMessage());
             }
         }
-        return $total;
+        return [$total, $size];
     }
 
     private function tag_items(iterable $items, string $tags, bool $replace): int
@@ -255,7 +252,7 @@ class BulkActions extends Extension
         $pos_tag_array = [];
         $neg_tag_array = [];
         foreach ($tags as $new_tag) {
-            if (strpos($new_tag, '-') === 0) {
+            if (str_starts_with($new_tag, '-')) {
                 $neg_tag_array[] = substr($new_tag, 1);
             } else {
                 $pos_tag_array[] = $new_tag;

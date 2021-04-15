@@ -2,8 +2,7 @@
 
 class RemoveReportedImageEvent extends Event
 {
-    /** @var  int */
-    public $id;
+    public int $id;
 
     public function __construct(int $id)
     {
@@ -14,8 +13,7 @@ class RemoveReportedImageEvent extends Event
 
 class AddReportedImageEvent extends Event
 {
-    /** @var ImageReport */
-    public $report;
+    public ImageReport $report;
 
     public function __construct(ImageReport $report)
     {
@@ -26,12 +24,9 @@ class AddReportedImageEvent extends Event
 
 class ImageReport
 {
-    /** @var int  */
-    public $user_id;
-    /** @var int  */
-    public $image_id;
-    /** @var string  */
-    public $reason;
+    public int $user_id;
+    public int $image_id;
+    public string $reason;
 
     public function __construct(int $image_id, int $user_id, string $reason)
     {
@@ -44,7 +39,7 @@ class ImageReport
 class ReportImage extends Extension
 {
     /** @var ReportImageTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     public function onPageRequest(PageRequestEvent $event)
     {
@@ -57,7 +52,7 @@ class ReportImage extends Extension
                     $page->set_mode(PageMode::REDIRECT);
                     $page->set_redirect(make_link("post/view/$image_id"));
                 } else {
-                    $this->theme->display_error(500, "Missing input", "Missing image ID or report reason");
+                    $this->theme->display_error(500, "Missing input", "Missing post ID or report reason");
                 }
             } elseif ($event->get_arg(0) == "remove") {
                 if (!empty($_POST['id'])) {
@@ -67,7 +62,7 @@ class ReportImage extends Extension
                         $page->set_redirect(make_link("image_report/list"));
                     }
                 } else {
-                    $this->theme->display_error(500, "Missing input", "Missing image ID");
+                    $this->theme->display_error(500, "Missing input", "Missing post ID");
                 }
             } elseif ($event->get_arg(0) == "remove_reports_by" && $user->check_auth_token()) {
                 if ($user->can(Permissions::VIEW_IMAGE_REPORT)) {
@@ -86,8 +81,8 @@ class ReportImage extends Extension
     public function onAddReportedImage(AddReportedImageEvent $event)
     {
         global $cache, $database;
-        log_info("report_image", "Adding report of Image #{$event->report->image_id} with reason '{$event->report->reason}'");
-        $database->Execute(
+        log_info("report_image", "Adding report of >>{$event->report->image_id} with reason '{$event->report->reason}'");
+        $database->execute(
             "INSERT INTO image_reports(image_id, reporter_id, reason)
 				VALUES (:image_id, :reporter_id, :reason)",
             ['image_id'=>$event->report->image_id, 'reporter_id'=>$event->report->user_id, 'reason'=>$event->report->reason]
@@ -98,7 +93,7 @@ class ReportImage extends Extension
     public function onRemoveReportedImage(RemoveReportedImageEvent $event)
     {
         global $cache, $database;
-        $database->Execute("DELETE FROM image_reports WHERE id = :id", ["id"=>$event->id]);
+        $database->execute("DELETE FROM image_reports WHERE id = :id", ["id"=>$event->id]);
         $cache->delete("image-report-count");
     }
 
@@ -128,7 +123,7 @@ class ReportImage extends Extension
                 $count = $this->count_reported_images();
                 $h_count = $count > 0 ? " ($count)" : "";
 
-                $event->add_nav_link("image_report", new Link('image_report/list'), "Reported Images$h_count");
+                $event->add_nav_link("image_report", new Link('image_report/list'), "Reported Posts$h_count");
             }
         }
     }
@@ -139,14 +134,14 @@ class ReportImage extends Extension
         if ($user->can(Permissions::VIEW_IMAGE_REPORT)) {
             $count = $this->count_reported_images();
             $h_count = $count > 0 ? " ($count)" : "";
-            $event->add_link("Reported Images$h_count", make_link("image_report/list"));
+            $event->add_link("Reported Posts$h_count", make_link("image_report/list"));
         }
     }
 
     public function onImageDeletion(ImageDeletionEvent $event)
     {
         global $cache, $database;
-        $database->Execute("DELETE FROM image_reports WHERE image_id = :image_id", ["image_id"=>$event->image->id]);
+        $database->execute("DELETE FROM image_reports WHERE image_id = :image_id", ["image_id"=>$event->image->id]);
         $cache->delete("image-report-count");
     }
 
@@ -157,7 +152,7 @@ class ReportImage extends Extension
 
     public function onSetupBuilding(SetupBuildingEvent $event)
     {
-        $sb = new SetupBlock("Image Reports");
+        $sb = $event->panel->create_new_block("Post Reports");
 
         $opts = [
             "Reporter Only" => "user",
@@ -166,8 +161,6 @@ class ReportImage extends Extension
             "None" => "none",
         ];
         $sb->add_choice_option("report_image_publicity", $opts, "Show publicly: ");
-
-        $event->panel->add_block($sb);
     }
 
     public function delete_reports_by(int $user_id)

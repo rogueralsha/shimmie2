@@ -3,7 +3,7 @@
 class Update extends Extension
 {
     /** @var UpdateTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     public function onInitExt(InitExtEvent $event)
     {
@@ -15,9 +15,8 @@ class Update extends Extension
 
     public function onSetupBuilding(SetupBuildingEvent $event)
     {
-        $sb = new SetupBlock("Update");
+        $sb = $event->panel->create_new_block("Update");
         $sb->add_text_option("update_guserrepo", "User/Repo: ");
-        $event->panel->add_block($sb);
     }
 
     public function onAdminBuilding(AdminBuildingEvent $event)
@@ -66,7 +65,7 @@ class Update extends Extension
         $filename = "./data/update_{$commitSHA}.zip";
 
         log_info("update", "Attempting to download Shimmie commit:  ".$commitSHA);
-        if ($headers = transload($url, $filename)) {
+        if ($headers = fetch_url($url, $filename)) {
             if (($headers['Content-Type'] !== MimeType::ZIP) || ((int) $headers['Content-Length'] !== filesize($filename))) {
                 unlink("./data/update_{$commitSHA}.zip");
                 log_warning("update", "Download failed: not zip / not same size as remote file.");

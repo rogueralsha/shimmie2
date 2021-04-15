@@ -144,6 +144,11 @@ class MimeMap
             self::MAP_EXT => [FileExtension::PNG],
             self::MAP_MIME => [MimeType::PNG],
         ],
+        MimeType::PPM => [
+            self::MAP_NAME => "Portable Pixel Map",
+            self::MAP_EXT => [FileExtension::PPM],
+            self::MAP_MIME => [MimeType::PPM],
+        ],
         MimeType::PSD => [
             self::MAP_NAME => "PSD",
             self::MAP_EXT => [FileExtension::PSD],
@@ -178,6 +183,11 @@ class MimeMap
             self::MAP_NAME => "TAR",
             self::MAP_EXT => [FileExtension::TAR],
             self::MAP_MIME => [MimeType::TAR],
+        ],
+        MimeType::TGA => [
+            self::MAP_NAME => "TGA",
+            self::MAP_EXT => [FileExtension::TGA],
+            self::MAP_MIME => [MimeType::TGA, 'image/x-targa'],
         ],
         MimeType::TEXT => [
             self::MAP_NAME => "Text",

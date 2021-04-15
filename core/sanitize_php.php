@@ -42,7 +42,7 @@ ini_set('assert.exception', '1');  // throw exceptions when failed
 set_error_handler(function ($errNo, $errStr) {
     // Should we turn ALL notices into errors? PHP allows a lot of
     // terrible things to happen by default...
-    if (strpos($errStr, 'Use of undefined constant ') === 0) {
+    if (str_starts_with($errStr, 'Use of undefined constant ')) {
         throw new Exception("PHP Error#$errNo: $errStr");
     } else {
         return false;
@@ -56,5 +56,5 @@ if (PHP_SAPI === 'cli' || PHP_SAPI == 'phpdbg') {
         die("CLI with remote addr? Confused, not taking the risk.");
     }
     $_SERVER['REMOTE_ADDR'] = "0.0.0.0";
-    $_SERVER['HTTP_HOST'] = "<cli command>";
+    $_SERVER['HTTP_HOST'] = "cli-command";
 }

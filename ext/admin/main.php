@@ -1,13 +1,11 @@
-<?php /** @noinspection PhpUnusedPrivateMethodInspection */
-declare(strict_types=1);
+<?php declare(strict_types=1);
 
 /**
  * Sent when the admin page is ready to be added to
  */
 class AdminBuildingEvent extends Event
 {
-    /** @var Page */
-    public $page;
+    public Page $page;
 
     public function __construct(Page $page)
     {
@@ -18,10 +16,8 @@ class AdminBuildingEvent extends Event
 
 class AdminActionEvent extends Event
 {
-    /** @var string */
-    public $action;
-    /** @var bool */
-    public $redirect = true;
+    public string $action;
+    public bool $redirect = true;
 
     public function __construct(string $action)
     {
@@ -33,11 +29,11 @@ class AdminActionEvent extends Event
 class AdminPage extends Extension
 {
     /** @var AdminPageTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     public function onPageRequest(PageRequestEvent $event)
     {
-        global $page, $user;
+        global $database, $page, $user;
 
         if ($event->page_matches("admin")) {
             if (!$user->can(Permissions::MANAGE_ADMINTOOLS)) {
@@ -52,6 +48,7 @@ class AdminPage extends Extension
                     if ($user->check_auth_token()) {
                         log_info("admin", "Util: $action");
                         set_time_limit(0);
+                        $database->set_timeout(300000);
                         send_event($aae);
                     }
 
@@ -80,8 +77,10 @@ class AdminPage extends Extension
         }
         if ($event->cmd == "get-page") {
             global $page;
+            $_SERVER['REQUEST_URI'] = $event->args[0];
             if (isset($event->args[1])) {
                 parse_str($event->args[1], $_GET);
+                $_SERVER['REQUEST_URI'] .= "?" . $event->args[1];
             }
             send_event(new PageRequestEvent($event->args[0]));
             $page->display();
@@ -129,7 +128,6 @@ class AdminPage extends Extension
     public function onAdminBuilding(AdminBuildingEvent $event)
     {
         $this->theme->display_page();
-        $this->theme->display_form();
     }
 
     public function onPageSubNavBuilding(PageSubNavBuildingEvent $event)
@@ -148,47 +146,5 @@ class AdminPage extends Extension
         if ($user->can(Permissions::MANAGE_ADMINTOOLS)) {
             $event->add_link("Board Admin", make_link("admin"));
         }
-    }
-
-    public function onAdminAction(AdminActionEvent $event)
-    {
-        $action = $event->action;
-        if (method_exists($this, $action)) {
-            $event->redirect = $this->$action();
-        }
-    }
-
-    private function set_tag_case()
-    {
-        global $database;
-        $database->execute(
-            "UPDATE tags SET tag=:tag1 WHERE LOWER(tag) = LOWER(:tag2)",
-            ["tag1" => $_POST['tag'], "tag2" => $_POST['tag']]
-        );
-        log_info("admin", "Fixed the case of {$_POST['tag']}", "Fixed case");
-        return true;
-    }
-
-    private function lowercase_all_tags()
-    {
-        global $database;
-        $database->execute("UPDATE tags SET tag=lower(tag)");
-        log_warning("admin", "Set all tags to lowercase", "Set all tags to lowercase");
-        return true;
-    }
-
-    private function recount_tag_use()
-    {
-        global $database;
-        $database->Execute("
-			UPDATE tags
-			SET count = COALESCE(
-				(SELECT COUNT(image_id) FROM image_tags WHERE tag_id=tags.id GROUP BY tag_id),
-				0
-			)
-		");
-        $database->Execute("DELETE FROM tags WHERE count=0");
-        log_warning("admin", "Re-counted tags", "Re-counted tags");
-        return true;
     }
 }

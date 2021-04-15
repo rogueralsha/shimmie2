@@ -15,6 +15,7 @@ use function \MicroHTML\BR;
 use function \MicroHTML\P;
 use function \MicroHTML\SELECT;
 use function \MicroHTML\OPTION;
+use \MicroHTML\HTMLElement;
 
 class UserPageTheme extends Themelet
 {
@@ -184,7 +185,7 @@ class UserPageTheme extends Themelet
         $page->add_block(new Block("Login", (string)$html, "left", 90));
     }
 
-    private function _ip_list(string $name, array $ips)
+    private function _ip_list(string $name, array $ips): HTMLElement
     {
         $td = TD("$name: ");
         $n = 0;
@@ -229,7 +230,8 @@ class UserPageTheme extends Themelet
         $page->add_block(new Block("Stats", join("<br>", $stats), "main", 10));
     }
 
-    public function build_options(User $duser, UserOptionsBuildingEvent $event): string
+
+    public function build_operations(User $duser, UserOperationsBuildingEvent $event): string
     {
         global $config, $user;
         $html = emptyHTML();
@@ -317,23 +319,23 @@ class UserPageTheme extends Themelet
         return (string)$html;
     }
 
-    public function get_help_html()
+    public function get_help_html(): HTMLElement
     {
         global $user;
-        $output = emptyHTML(P("Search for images posted by particular individuals."));
+        $output = emptyHTML(P("Search for posts posted by particular individuals."));
         $output->appendChild(SHM_COMMAND_EXAMPLE(
             "poster=username",
-            'Returns images posted by "username".'
+            'Returns posts posted by "username".'
         ));
         $output->appendChild(SHM_COMMAND_EXAMPLE(
             "poster_id=123",
-            'Returns images posted by user 123.'
+            'Returns posts posted by user 123.'
         ));
 
         if ($user->can(Permissions::VIEW_IP)) {
             $output->appendChild(SHM_COMMAND_EXAMPLE(
                 "poster_ip=127.0.0.1",
-                "Returns images posted from IP 127.0.0.1."
+                "Returns posts posted from IP 127.0.0.1."
             ));
         }
         return $output;

@@ -12,7 +12,7 @@ class ImageTranscodeException extends SCoreException
 class TranscodeImage extends Extension
 {
     /** @var TranscodeImageTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     const ACTION_BULK_TRANSCODE = "bulk_transcode";
 
@@ -22,9 +22,11 @@ class TranscodeImage extends Extension
         "ICO" => MimeType::ICO,
         "JPG" => MimeType::JPEG,
         "PNG" => MimeType::PNG,
+        "PPM" => MimeType::PPM,
         "PSD" => MimeType::PSD,
         "TIFF" => MimeType::TIFF,
-        "WEBP" => MimeType::WEBP
+        "WEBP" => MimeType::WEBP,
+        "TGA" => MimeType::TGA
     ];
 
     const OUTPUT_MIMES = [
@@ -91,8 +93,6 @@ class TranscodeImage extends Extension
 
     public function onDatabaseUpgrade(DatabaseUpgradeEvent $event)
     {
-        global $config;
-
         if ($this->get_version(TranscodeConfig::VERSION) < 1) {
             $old_extensions =[];
             foreach (array_values(self::INPUT_MIMES) as $mime) {
@@ -142,7 +142,7 @@ class TranscodeImage extends Extension
         $engine = $config->get_string(TranscodeConfig::ENGINE);
 
 
-        $sb = new SetupBlock("Image Transcode");
+        $sb = $event->panel->create_new_block("Image Transcode");
         $sb->start_table();
         $sb->add_bool_option(TranscodeConfig::ENABLED, "Allow transcoding images", true);
         $sb->add_bool_option(TranscodeConfig::GET_ENABLED, "Enable GET args", true);
@@ -157,7 +157,6 @@ class TranscodeImage extends Extension
         $sb->add_int_option(TranscodeConfig::QUALITY, "Lossy Format Quality", true);
         $sb->add_color_option(TranscodeConfig::ALPHA_COLOR, "Alpha Conversion Color", true);
         $sb->end_table();
-        $event->panel->add_block($sb);
     }
 
     public function onDataUpload(DataUploadEvent $event)
@@ -200,11 +199,11 @@ class TranscodeImage extends Extension
             } elseif (isset($_POST['image_id'])) {
                 $image_id =  int_escape($_POST['image_id']);
             } else {
-                throw new ImageTranscodeException("Can not resize Image: No valid Image ID given.");
+                throw new ImageTranscodeException("Can not resize Image: No valid Post ID given.");
             }
             $image_obj = Image::by_id($image_id);
             if (is_null($image_obj)) {
-                $this->theme->display_error(404, "Image not found", "No image in the database has the ID #$image_id");
+                $this->theme->display_error(404, "Post not found", "No image in the database has the ID #$image_id");
             } else {
                 if (isset($_POST['transcode_mime'])) {
                     try {

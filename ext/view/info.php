@@ -4,11 +4,11 @@ class ViewImageInfo extends ExtensionInfo
 {
     public const KEY = "view";
 
-    public $key = self::KEY;
-    public $name = "Image Viewer";
-    public $url = self::SHIMMIE_URL;
-    public $authors = self::SHISH_AUTHOR;
-    public $description = "Allows users to see uploaded images";
-    public $core = true;
-    public $visibility = self::VISIBLE_HIDDEN;
+    public string $key = self::KEY;
+    public string $name = "Post Viewer";
+    public string $url = self::SHIMMIE_URL;
+    public array $authors = self::SHISH_AUTHOR;
+    public string $description = "Allows users to see uploaded posts";
+    public bool $core = true;
+    public string $visibility = self::VISIBLE_HIDDEN;
 }

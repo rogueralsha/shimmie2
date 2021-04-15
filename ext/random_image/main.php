@@ -3,7 +3,7 @@
 class RandomImage extends Extension
 {
     /** @var RandomImageTheme */
-    protected $theme;
+    protected ?Themelet $theme;
 
     public function onPageRequest(PageRequestEvent $event)
     {
@@ -22,15 +22,13 @@ class RandomImage extends Extension
             $image = Image::by_random($search_terms);
             if (!$image) {
                 throw new SCoreException(
-                    "Couldn't find any images randomly",
+                    "Couldn't find any posts randomly",
                     Tag::implode($search_terms)
                 );
             }
 
             if ($action === "download") {
-                if (!is_null($image)) {
-                    send_event(new ImageDownloadingEvent($image, $image->get_image_filename(), $image->get_mime()));
-                }
+                send_event(new ImageDownloadingEvent($image, $image->get_image_filename(), $image->get_mime()));
             } elseif ($action === "view") {
                 send_event(new DisplayingImageEvent($image));
             } elseif ($action === "widget") {
@@ -43,9 +41,8 @@ class RandomImage extends Extension
 
     public function onSetupBuilding(SetupBuildingEvent $event)
     {
-        $sb = new SetupBlock("Random Image");
+        $sb = $event->panel->create_new_block("Random Post");
         $sb->add_bool_option("show_random_block", "Show Random Block: ");
-        $event->panel->add_block($sb);
     }
 
     public function onPostListBuilding(PostListBuildingEvent $event)
@@ -62,7 +59,7 @@ class RandomImage extends Extension
     public function onPageSubNavBuilding(PageSubNavBuildingEvent $event)
     {
         if ($event->parent=="posts") {
-            $event->add_nav_link("posts_random", new Link('random_image/view'), "Random Image");
+            $event->add_nav_link("posts_random", new Link('random_image/view'), "Random Post");
         }
     }
 }

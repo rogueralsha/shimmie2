@@ -1,5 +1,25 @@
 <?php declare(strict_types=1);
 
+use \MicroHTML\HTMLElement;
+
+function TAGS(...$args): HTMLElement
+{
+    return new HTMLElement("tags", $args);
+}
+function TAG(...$args): HTMLElement
+{
+    return new HTMLElement("tag", $args);
+}
+function POSTS(...$args): HTMLElement
+{
+    return new HTMLElement("posts", $args);
+}
+function POST(...$args): HTMLElement
+{
+    return new HTMLElement("post", $args);
+}
+
+
 class DanbooruApi extends Extension
 {
     public function onPageRequest(PageRequestEvent $event)
@@ -14,10 +34,10 @@ class DanbooruApi extends Extension
                 $this->api_add_post();
             } elseif ($event->page_matches("api/danbooru/find_posts") || $event->page_matches("api/danbooru/post/index.xml")) {
                 $page->set_mime(MimeType::XML_APPLICATION);
-                $page->set_data($this->api_find_posts());
+                $page->set_data((string)$this->api_find_posts());
             } elseif ($event->page_matches("api/danbooru/find_tags")) {
                 $page->set_mime(MimeType::XML_APPLICATION);
-                $page->set_data($this->api_find_tags());
+                $page->set_data((string)$this->api_find_tags());
             }
 
             // Hackery for danbooruup 0.3.2 providing the wrong view url. This simply redirects to the proper
@@ -37,7 +57,7 @@ class DanbooruApi extends Extension
      * Authenticates a user based on the contents of the login and password parameters
      * or makes them anonymous. Does not set any cookies or anything permanent.
      */
-    private function authenticate_user()
+    private function authenticate_user(): void
     {
         global $config, $user;
 
@@ -66,7 +86,7 @@ class DanbooruApi extends Extension
      * - tags: any typical tag query. See Tag#parse_query for details.
      * - after_id: limit results to tags with an id number after after_id. Useful if you only want to refresh
      */
-    private function api_find_tags(): string
+    private function api_find_tags(): HTMLElement
     {
         global $database;
         $results = [];
@@ -94,11 +114,14 @@ class DanbooruApi extends Extension
             }
         }
         // Currently disabled to maintain identical functionality to danbooru 1.0's own "broken" find_tags
-        elseif (false && isset($_GET['tags'])) {
+        /*
+        elseif (isset($_GET['tags'])) {
             $start = isset($_GET['after_id']) ? int_escape($_GET['offset']) : 0;
             $tags = Tag::explode($_GET['tags']);
             assert(!is_null($start) && !is_null($tags));
-        } else {
+        }
+        */
+        else {
             $start = isset($_GET['after_id']) ? int_escape($_GET['offset']) : 0;
             $sqlresult = $database->get_all(
                 "SELECT id,tag,count FROM tags WHERE count > 0 AND id >= :id ORDER BY id DESC",
@@ -110,16 +133,15 @@ class DanbooruApi extends Extension
         }
 
         // Tag results collected, build XML output
-        $xml = "<tags>\n";
+        $xml = TAGS();
         foreach ($results as $tag) {
-            $xml .= xml_tag("tag", [
+            $xml->appendChild(TAG([
                 "type" => "0",
                 "counts" => $tag[0],
                 "name" => $tag[1],
                 "id" => $tag[2],
-            ]);
+            ]));
         }
-        $xml .= "</tags>";
         return $xml;
     }
 
@@ -137,7 +159,7 @@ class DanbooruApi extends Extension
      *
      * #return string
      */
-    private function api_find_posts()
+    private function api_find_posts(): HTMLElement
     {
         $results = [];
 
@@ -175,7 +197,7 @@ class DanbooruApi extends Extension
 
         // Now we have the array $results filled with Image objects
         // Let's display them
-        $xml = "<posts count=\"{$count}\" offset=\"{$start}\">\n";
+        $xml = POSTS(["count"=>$count, "offset"=>$start]);
         foreach ($results as $img) {
             // Sanity check to see if $img is really an image object
             // If it isn't (e.g. someone requested an invalid md5 or id), break out of the this
@@ -185,7 +207,7 @@ class DanbooruApi extends Extension
             $taglist = $img->get_tag_list();
             $owner = $img->get_owner();
             $previewsize = get_thumbnail_size($img->width, $img->height);
-            $xml .= xml_tag("post", [
+            $xml->appendChild(TAG([
                 "id" => $img->id,
                 "md5" => $img->hash,
                 "file_name" => $img->filename,
@@ -202,9 +224,8 @@ class DanbooruApi extends Extension
                 "source" => $img->source,
                 "score" => 0,
                 "author" => $owner->name
-            ]);
+            ]));
         }
-        $xml .= "</posts>";
         return $xml;
     }
 
@@ -235,7 +256,7 @@ class DanbooruApi extends Extension
      * Get:
      * - Redirected to the newly uploaded post.
      */
-    private function api_add_post()
+    private function api_add_post(): void
     {
         global $user, $page;
         $danboorup_kludge = 1;            // danboorup for firefox makes broken links out of location: /path
@@ -272,7 +293,7 @@ class DanbooruApi extends Extension
         } elseif (isset($_REQUEST['source']) || isset($_REQUEST['post']['source'])) {    // A url was provided
             $source = isset($_REQUEST['source']) ? $_REQUEST['source'] : $_REQUEST['post']['source'];
             $file = tempnam(sys_get_temp_dir(), "shimmie_transload");
-            $ok = transload($source, $file);
+            $ok = fetch_url($source, $file);
             if (!$ok) {
                 $page->set_code(409);
                 $page->add_http_header("X-Danbooru-Errors: fopen read error");
